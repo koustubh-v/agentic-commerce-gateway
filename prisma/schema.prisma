@@ -1,0 +1,616 @@
+// =============================================================================
+// Agent Commerce Gateway — Canonical IR Schema
+// Every model here IS the canonical Intermediate Representation.
+// Merchant DB is source of truth; this schema is the agent-facing cache.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+enum MerchantStatus {
+  ACTIVE
+  SUSPENDED
+  ONBOARDING
+}
+
+enum IntegrationMode {
+  MODE_A // Config-mapping + polling (zero merchant code)
+  MODE_B // SDK push-based (merchant pushes events)
+}
+
+enum SyncStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+enum ProductStatus {
+  ACTIVE
+  DRAFT
+  ARCHIVED
+}
+
+enum AvailabilityStatus {
+  IN_STOCK
+  OUT_OF_STOCK
+  PREORDER
+  DISCONTINUED
+}
+
+enum CartStatus {
+  ACTIVE
+  CHECKED_OUT
+  ABANDONED
+  EXPIRED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+  FAILED
+}
+
+enum FulfillmentStatus {
+  UNFULFILLED
+  PARTIALLY_FULFILLED
+  FULFILLED
+  RETURNED
+}
+
+enum TransactionStatus {
+  INTENT_CREATED
+  BOUNDS_CHECKED
+  GATE_APPROVED
+  GATE_REJECTED
+  OUTBOX_WRITTEN
+  PSP_INITIATED
+  PSP_PENDING
+  PSP_SUCCEEDED
+  PSP_FAILED
+  UNCERTAIN        // Network timeout — reconciling
+  FULFILLMENT_TRIGGERED
+  SETTLED
+  REFUNDED
+  FAILED
+}
+
+enum EventType {
+  INTENT_CREATED
+  BOUNDS_CHECKED
+  GATE_DECISION
+  OUTBOX_WRITTEN
+  PSP_INITIATED
+  PSP_WEBHOOK_RECEIVED
+  RECONCILED
+  FULFILLMENT_TRIGGERED
+  FULFILLED
+  SETTLED
+  FAILED
+  REFUNDED
+  CANCELLED
+  ORDER_UPDATE_RECEIVED  // Merchant pushed an order update
+  STATUS_PROPAGATED      // We pushed status back to agent/merchant
+}
+
+enum GateDecision {
+  APPROVED
+  REJECTED
+  REQUIRES_STEP_UP
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// MERCHANT — Identity, credentials, integration config
+// ---------------------------------------------------------------------------
+
+model Merchant {
+  id              String          @id @default(uuid())
+  name            String
+  slug            String          @unique // URL-safe identifier
+  status          MerchantStatus  @default(ONBOARDING)
+  integrationMode IntegrationMode @default(MODE_A)
+
+  // Contact
+  email           String
+  websiteUrl      String?
+
+  // Commerce settings
+  currency        String          @default("INR") // ISO 4217
+  taxMode         String          @default("inclusive") // inclusive | exclusive
+  fulfillmentRegions String[]     @default([])
+
+  // Auth: API key for merchant ↔ ACG
+  apiKeyHash      String          @unique // bcrypt hash of raw key
+  apiKeyPrefix    String          // first 8 chars for lookup (e.g. "ak_live_x")
+
+  // Razorpay account linked to this merchant
+  razorpayKeyId   String?
+  razorpayKeySecretEncrypted String? // AES-256 encrypted
+
+  // Policy overrides (JSON, validated by Zod at application layer)
+  // Structure: { perTransactionCapINR, perSessionCapINR, velocityTxPerHour, allowedSkuCategories }
+  agentPolicy     Json?
+
+  // Webhook endpoints ACG should call back on order/fulfillment events
+  fulfillmentWebhookUrl  String?
+  cancellationWebhookUrl String?
+  webhookSigningSecret   String?  // HMAC secret for outbound webhooks to merchant
+
+  // Timestamps
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  syncConfig      MerchantSyncConfig?
+  syncLogs        SyncLog[]
+  products        Product[]
+  carts           Cart[]
+  orders          Order[]
+  paymentIntents  PaymentIntent[]
+
+  @@index([slug])
+  @@index([apiKeyPrefix])
+  @@map("merchants")
+}
+
+// ---------------------------------------------------------------------------
+// MERCHANT SYNC CONFIG — Mode A config-mapping manifest
+// ---------------------------------------------------------------------------
+
+model MerchantSyncConfig {
+  id          String   @id @default(uuid())
+  merchantId  String   @unique
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  // The merchant's existing REST endpoints
+  productsEndpoint   String?
+  inventoryEndpoint  String? // separate endpoint, if any
+  ordersEndpoint     String? // for reading order status
+  checkoutWebhookUrl String? // POST target when ACG creates an order
+
+  // JSONPath field mapping: { "id": "$.sku", "title": "$.name", ... }
+  // Keys are canonical IR field names, values are JSONPath expressions
+  fieldMap    Json
+
+  // JSONPath to products array in the response. e.g. "$.products" or "$" for root array.
+  productsArrayPath String @default("$")
+
+  // Optional auth for merchant's own API
+  authType    String?  // "bearer" | "api_key_header" | "basic" | "none"
+  authHeaderName String? // e.g. "Authorization", "X-API-Key"
+  authValueEncrypted String? // encrypted credential value
+
+  // Polling config
+  pollIntervalMinutes Int    @default(5)
+  isPollingEnabled    Boolean @default(true)
+
+  // Freshness
+  staleAfterSeconds   Int    @default(600)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("merchant_sync_configs")
+}
+
+// ---------------------------------------------------------------------------
+// SYNC LOG — Freshness tracking per merchant sync run
+// ---------------------------------------------------------------------------
+
+model SyncLog {
+  id          String     @id @default(uuid())
+  merchantId  String
+  merchant    Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  status      SyncStatus
+  entityType  String     // "products" | "inventory" | "orders"
+  recordsProcessed Int   @default(0)
+  recordsFailed    Int   @default(0)
+  errorMessage     String?
+  durationMs       Int?
+
+  startedAt   DateTime   @default(now())
+  completedAt DateTime?
+
+  @@index([merchantId, startedAt])
+  @@index([merchantId, entityType, startedAt])
+  @@map("sync_logs")
+}
+
+// ---------------------------------------------------------------------------
+// PRODUCT — Canonical IR product entity
+// ---------------------------------------------------------------------------
+
+model Product {
+  id          String        @id @default(uuid())
+  merchantId  String
+  merchant    Merchant      @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  // External reference from merchant's system
+  externalId  String        // merchant's own product ID
+  externalUrl String?       // canonical URL on merchant's site
+
+  // Core fields
+  title       String
+  description String?
+  category    String?
+  tags        String[]      @default([])
+  brand       String?
+
+  // Pricing (base / default variant)
+  price       Decimal       @db.Decimal(12, 2)
+  compareAtPrice Decimal?   @db.Decimal(12, 2) // original price for "sale" display
+  currency    String        @default("INR")
+
+  // Media
+  images      Json          @default("[]") // Array of { url, alt, position }
+
+  status      ProductStatus          @default(ACTIVE)
+  availability AvailabilityStatus    @default(IN_STOCK)
+
+  // Agent policy: can this product be purchased by an agent directly?
+  agentPurchasable Boolean  @default(true)
+
+  // Data freshness
+  lastSyncedAt DateTime?
+  isStale     Boolean       @default(false)
+  staleReason String?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  variants    ProductVariant[]
+  cartItems   CartItem[]
+
+  @@unique([merchantId, externalId])
+  @@index([merchantId, status])
+  @@index([merchantId, category])
+  @@index([merchantId, availability])
+  @@map("products")
+}
+
+// ---------------------------------------------------------------------------
+// PRODUCT VARIANT — Per-variant pricing, stock, attributes
+// ---------------------------------------------------------------------------
+
+model ProductVariant {
+  id          String   @id @default(uuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  externalId  String   // merchant's variant ID
+  title       String   // e.g. "Red / Large"
+
+  // Pricing override (null = inherit from parent product)
+  price       Decimal? @db.Decimal(12, 2)
+  compareAtPrice Decimal? @db.Decimal(12, 2)
+
+  // Attributes: { color: "red", size: "L", material: "cotton" }
+  attributes  Json     @default("{}")
+
+  sku         String?
+  barcode     String?
+  weight      Decimal? @db.Decimal(8, 3) // in kg
+  weightUnit  String?  @default("kg")
+
+  // Agent policy: can this variant be purchased by an agent?
+  agentPurchasable Boolean @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  inventory   Inventory?
+  cartItems   CartItem[]
+
+  @@unique([productId, externalId])
+  @@index([productId])
+  @@map("product_variants")
+}
+
+// ---------------------------------------------------------------------------
+// INVENTORY — Stock count per variant (separate for atomic updates)
+// ---------------------------------------------------------------------------
+
+model Inventory {
+  id          String         @id @default(uuid())
+  variantId   String         @unique
+  variant     ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  // Stock — updated atomically via SQL UPDATE WHERE stock > 0
+  stock       Int            @default(0)
+  reservedStock Int          @default(0) // held by active carts
+  availability AvailabilityStatus @default(IN_STOCK)
+
+  // Thresholds
+  lowStockThreshold Int?     // alert below this count
+  trackQuantity    Boolean   @default(true)
+
+  lastSyncedAt DateTime?
+  updatedAt    DateTime      @updatedAt
+
+  @@index([variantId])
+  @@map("inventory")
+}
+
+// ---------------------------------------------------------------------------
+// CART — Agent-facing cart with optimistic concurrency
+// ---------------------------------------------------------------------------
+
+model Cart {
+  id          String     @id @default(uuid())
+  merchantId  String
+  merchant    Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  // Agent/session association
+  agentSessionId String?
+  externalCartId String?  // if merchant has their own cart ID
+
+  status      CartStatus @default(ACTIVE)
+
+  // Totals (recomputed server-side on every item change, never trust client)
+  subtotal    Decimal    @db.Decimal(12, 2) @default(0)
+  taxAmount   Decimal    @db.Decimal(12, 2) @default(0)
+  discountAmount Decimal @db.Decimal(12, 2) @default(0)
+  total       Decimal    @db.Decimal(12, 2) @default(0)
+  currency    String     @default("INR")
+
+  // Applied discounts / coupons
+  coupons     Json       @default("[]")
+
+  // Optimistic concurrency: every cart mutation bumps version
+  version     Int        @default(1)
+
+  // TTL management
+  expiresAt   DateTime?
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  items       CartItem[]
+  order       Order?
+
+  @@index([merchantId, agentSessionId])
+  @@index([merchantId, status])
+  @@map("carts")
+}
+
+// ---------------------------------------------------------------------------
+// CART ITEM — Line item within a cart
+// ---------------------------------------------------------------------------
+
+model CartItem {
+  id          String         @id @default(uuid())
+  cartId      String
+  cart        Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  productId   String
+  product     Product        @relation(fields: [productId], references: [id])
+
+  variantId   String?
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
+
+  quantity    Int
+  unitPrice   Decimal        @db.Decimal(12, 2) // locked at time of add
+  lineTotal   Decimal        @db.Decimal(12, 2) // quantity * unitPrice
+
+  // Snapshot of product title at add time (stable even if product changes)
+  productTitle   String
+  variantTitle   String?
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([cartId])
+  @@index([productId])
+  @@map("cart_items")
+}
+
+// ---------------------------------------------------------------------------
+// ORDER — Cart snapshot + status + fulfillment state
+// ---------------------------------------------------------------------------
+
+model Order {
+  id          String            @id @default(uuid())
+  merchantId  String
+  merchant    Merchant          @relation(fields: [merchantId], references: [id])
+
+  // Link to the cart that originated this order
+  cartId      String            @unique
+  cart        Cart              @relation(fields: [cartId], references: [id])
+
+  // External reference from merchant's system (after fulfillment)
+  externalOrderId String?
+
+  status          OrderStatus       @default(PENDING)
+  fulfillmentStatus FulfillmentStatus @default(UNFULFILLED)
+
+  // Totals locked at order creation
+  subtotal    Decimal           @db.Decimal(12, 2)
+  taxAmount   Decimal           @db.Decimal(12, 2)
+  discountAmount Decimal        @db.Decimal(12, 2)
+  total       Decimal           @db.Decimal(12, 2)
+  currency    String
+
+  // Customer info
+  customerEmail String?
+  customerName  String?
+  shippingAddress Json?   // { line1, line2, city, state, pincode, country }
+  billingAddress  Json?
+
+  // Fulfillment tracking
+  trackingNumber String?
+  trackingUrl    String?
+  estimatedDelivery DateTime?
+
+  // Agent info
+  agentSessionId String?
+  agentCallbackUrl String? // agent registers this to receive status pushes
+
+  // Notes
+  notes       String?
+  internalNotes String?
+
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relations
+  paymentIntents  PaymentIntent[]
+  transactionEvents TransactionEvent[]
+
+  @@index([merchantId, status])
+  @@index([merchantId, externalOrderId])
+  @@index([agentSessionId])
+  @@map("orders")
+}
+
+// ---------------------------------------------------------------------------
+// PAYMENT INTENT — Scoped token, amount, merchant ref, PSP ref
+// ---------------------------------------------------------------------------
+
+model PaymentIntent {
+  id          String            @id @default(uuid())
+  merchantId  String
+  merchant    Merchant          @relation(fields: [merchantId], references: [id])
+
+  orderId     String
+  order       Order             @relation(fields: [orderId], references: [id])
+
+  // Idempotency key — client-generated, unique constraint prevents double charges
+  idempotencyKey String         @unique
+
+  // Amounts (all server-side computed, never trust client)
+  amount      Decimal           @db.Decimal(12, 2)
+  currency    String            @default("INR")
+
+  // Current status (derived from latest TransactionEvent, but denormalized for query performance)
+  status      TransactionStatus @default(INTENT_CREATED)
+
+  // PSP references
+  pspProvider String            @default("razorpay")
+  pspOrderId  String?           // Razorpay Order ID
+  pspPaymentId String?          // Razorpay Payment ID
+  pspSignature String?          // Razorpay payment signature
+
+  // Gate decision record
+  gateDecision GateDecision?
+  gateRule    String?
+  gateMessage String?
+
+  // Scoped token returned to agent (short-lived, represents this checkout session)
+  checkoutToken String?
+  checkoutTokenExpiresAt DateTime?
+
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relations
+  transactionEvents TransactionEvent[]
+  outboxEntries     Outbox[]
+
+  @@index([merchantId, status])
+  @@index([orderId])
+  @@index([pspOrderId])
+  @@map("payment_intents")
+}
+
+// ---------------------------------------------------------------------------
+// TRANSACTION EVENT — Append-only, event-sourced audit log
+// NEVER UPDATE — only INSERT. Current state = latest event.
+// ---------------------------------------------------------------------------
+
+model TransactionEvent {
+  id              String    @id @default(uuid())
+
+  // Groups events for one payment flow
+  paymentIntentId String
+  paymentIntent   PaymentIntent @relation(fields: [paymentIntentId], references: [id])
+
+  orderId         String
+  order           Order     @relation(fields: [orderId], references: [id])
+
+  eventType       EventType
+
+  // Who triggered this event
+  actor           String    // "agent:<session_id>" | "system:reconciler" | "system:webhook" | "merchant:<id>"
+
+  // Structured payload (amounts, reasons, PSP references, etc.)
+  payload         Json      @default("{}")
+
+  // Threads the full flow together (agent request → outbox → PSP → webhook)
+  correlationId   String
+
+  // PSP event dedup — unique constraint prevents processing the same webhook twice
+  pspEventId      String?   @unique
+
+  // Optional tamper-evidence hash chain
+  prevHash        String?   // sha256(prev_event.id + prev_event.payload)
+
+  // Immutable timestamp — NEVER updated
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+
+  @@index([paymentIntentId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([correlationId])
+  @@index([eventType])
+  @@map("transaction_events")
+}
+
+// ---------------------------------------------------------------------------
+// OUTBOX — Distributed transaction pattern
+// Write intent BEFORE calling PSP. Worker reads and makes actual PSP call.
+// ---------------------------------------------------------------------------
+
+model Outbox {
+  id              String       @id @default(uuid())
+  paymentIntentId String
+  paymentIntent   PaymentIntent @relation(fields: [paymentIntentId], references: [id])
+
+  // What the worker should do
+  actionType      String       // "CREATE_RAZORPAY_ORDER" | "NOTIFY_MERCHANT" | "NOTIFY_AGENT"
+  payload         Json
+
+  status          OutboxStatus @default(PENDING)
+
+  // Retry tracking
+  attempts        Int          @default(0)
+  maxAttempts     Int          @default(5)
+  lastAttemptAt   DateTime?
+  nextRetryAt     DateTime?
+  errorMessage    String?
+
+  // Correlation for tracing
+  correlationId   String
+
+  createdAt       DateTime     @default(now())
+  processedAt     DateTime?
+
+  @@index([status, nextRetryAt])
+  @@index([paymentIntentId])
+  @@map("outbox")
+}

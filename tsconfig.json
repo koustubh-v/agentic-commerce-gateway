@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@/config/*": ["./src/config/*"],
+      "@/db/*": ["./src/db/*"],
+      "@/cache/*": ["./src/cache/*"],
+      "@/types/*": ["./src/types/*"],
+      "@/ir/*": ["./src/ir/*"],
+      "@/ingestion/*": ["./src/ingestion/*"],
+      "@/sync/*": ["./src/sync/*"],
+      "@/payments/*": ["./src/payments/*"],
+      "@/merchants/*": ["./src/merchants/*"],
+      "@/webhooks/*": ["./src/webhooks/*"],
+      "@/jobs/*": ["./src/jobs/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}
