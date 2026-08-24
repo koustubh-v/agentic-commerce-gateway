@@ -1,121 +1,183 @@
 import { prisma } from '../db/client.js';
-import { appendTransactionEvent } from './event-log.js';
-import { updateOrderStatus } from '../ir/orders.js';
-import { env } from '../config/env.js';
 import { fetchRazorpayOrderStatus } from './razorpay.js';
+import { handlePaymentAuthorized } from '../webhooks/razorpay.js';
+import { appendTransactionEvent } from './event-log.js';
+import { releaseAllLocksForCheckout } from '../commerce/inventory-lock.js';
+import { env } from '../config/env.js';
 
-// ---------------------------------------------------------------------------
-// Reconciler — polls for UNCERTAIN transactions and resolves them
-//
-// Called when Razorpay's HTTP response timed out but money may have moved.
-// State = UNCERTAIN means "do not retry the charge — reconcile first."
-// Cron interval: env.RECONCILER_POLL_INTERVAL_MS
-// ---------------------------------------------------------------------------
+export function startReconciler(): () => void {
+  const interval = setInterval(async () => {
+    try {
+      const { processed, errors } = await runReconciliation();
+      if (processed > 0 || errors > 0) {
+        console.info(`[Reconciler] Processed ${processed} stuck intents. Errors: ${errors}`);
+      }
+    } catch (err) {
+      console.error(`[Reconciler] Fatal error during run:`, err);
+    }
+  }, env.RECONCILER_POLL_INTERVAL_MS);
 
-/**
- * Reconcile all UNCERTAIN payment intents that have been pending
- * longer than RECONCILER_THRESHOLD_SECONDS.
- *
- * Phase 1: Logs that reconciliation would happen.
- * Payment Phase: Calls Razorpay GET /orders/{id} and updates status.
- */
-export async function reconcileUncertainTransactions(): Promise<void> {
+  return () => clearInterval(interval);
+}
+
+export async function runReconciliation(): Promise<{ processed: number; errors: number }> {
   const threshold = new Date(Date.now() - env.RECONCILER_THRESHOLD_SECONDS * 1000);
 
-  const uncertainIntents = await prisma.paymentIntent.findMany({
+  const stuckIntents = await prisma.paymentIntent.findMany({
     where: {
-      status: 'UNCERTAIN',
-      updatedAt: { lte: threshold },
+      status: { in: ['PSP_INITIATED', 'UNCERTAIN', 'PSP_AUTHORIZED'] },
+      createdAt: { lt: threshold },
     },
-    include: { order: true },
-    take: 50,
+    include: { order: { include: { cart: { include: { items: true } } } } },
   });
 
-  if (uncertainIntents.length === 0) return;
+  let processed = 0;
+  let errors = 0;
 
-  console.info(`[Reconciler] Found ${uncertainIntents.length} UNCERTAIN transactions to reconcile.`);
-
-  for (const intent of uncertainIntents) {
-    const correlationId = `reconciler:${intent.id}:${Date.now()}`;
-
+  for (const intent of stuckIntents) {
     try {
-      // Payment Phase: Call Razorpay GET /orders/{pspOrderId}
-      const razorpayStatus = await fetchRazorpayOrderStatus(intent.pspOrderId!);
-      
-      let newIntentStatus = intent.status;
-      let newEvent: 'RECONCILED' | 'FAILED' = 'RECONCILED';
-      
-      if (razorpayStatus) {
-        if (razorpayStatus.status === 'captured') {
-          newIntentStatus = 'PSP_SUCCEEDED';
-          newEvent = 'RECONCILED';
-        } else if (razorpayStatus.status === 'failed') {
-          newIntentStatus = 'PSP_FAILED';
-          newEvent = 'FAILED';
-        } else {
-          // If it's created or authorized but not captured, we'll mark as failed to let agent retry, 
-          // or we can leave it UNCERTAIN. In most merchant integrations, uncaptured after timeout = failed.
-          newIntentStatus = 'PSP_FAILED';
-          newEvent = 'FAILED';
-        }
-      } else {
-        // Not found on Razorpay end, means it failed to even create
-        newIntentStatus = 'PSP_FAILED';
-        newEvent = 'FAILED';
+      if (!intent.pspOrderId) {
+        await prisma.paymentIntent.update({
+          where: { id: intent.id },
+          data: { status: 'FAILED' },
+        });
+        processed++;
+        continue;
       }
 
-      await prisma.$transaction(async (tx) => {
-        // Update intent
-        await tx.paymentIntent.update({
-          where: { id: intent.id },
-          data: { status: newIntentStatus },
-        });
+      const razorpayStatus = await fetchRazorpayOrderStatus(intent.pspOrderId);
+      const correlationId = `reconciler:${intent.id}`;
 
-        // Append event
-        await appendTransactionEvent({
-          paymentIntentId: intent.id,
-          orderId: intent.orderId,
-          eventType: newEvent,
-          actor: 'system:reconciler',
-          payload: {
-            message: `Reconciliation resolved to ${newIntentStatus}`,
-            pspOrderId: intent.pspOrderId,
-            razorpayStatus: razorpayStatus?.status,
-            thresholdSeconds: env.RECONCILER_THRESHOLD_SECONDS,
-          },
-          correlationId,
-        });
+      if (!razorpayStatus) {
+        await handleNoPaymentFound(intent, correlationId);
+        processed++;
+        continue;
+      }
 
-        // If succeeded, update order status to PROCESSING (or PAID)
-        if (newIntentStatus === 'PSP_SUCCEEDED') {
-          await tx.order.update({
-            where: { id: intent.orderId },
-            data: { status: 'PROCESSING' },
-          });
-        }
-      });
+      switch (razorpayStatus.status) {
+        case 'captured':
+          await handleCapturedReconciliation(intent, razorpayStatus, correlationId);
+          break;
 
-      console.info(
-        `[Reconciler] Resolved intent ${intent.id} to ${newIntentStatus} (pspOrderId: ${intent.pspOrderId}).`,
-      );
+        case 'authorized':
+          await handleAuthorizedReconciliation(intent, razorpayStatus, correlationId);
+          break;
+
+        case 'failed':
+          await handleFailedReconciliation(intent, razorpayStatus, correlationId);
+          break;
+
+        default:
+          await handleFailedReconciliation(intent, razorpayStatus, correlationId);
+          break;
+      }
+
+      processed++;
     } catch (err) {
-      console.error(`[Reconciler] Failed to reconcile intent ${intent.id}:`, err);
+      errors++;
     }
+  }
+
+  return { processed, errors };
+}
+
+async function handleNoPaymentFound(intent: any, correlationId: string) {
+  await appendTransactionEvent({
+    paymentIntentId: intent.id,
+    orderId: intent.orderId,
+    eventType: 'RECONCILED',
+    actor: 'system:reconciler',
+    payload: { outcome: 'no_payment_found', originalStatus: intent.status },
+    correlationId,
+  });
+
+  await prisma.paymentIntent.update({
+    where: { id: intent.id },
+    data: { status: 'PSP_FAILED' },
+  });
+
+  await prisma.order.update({
+    where: { id: intent.orderId },
+    data: { status: 'FAILED' },
+  });
+
+  await releaseLocksForIntent(intent);
+}
+
+async function handleCapturedReconciliation(intent: any, payment: any, correlationId: string) {
+  await appendTransactionEvent({
+    paymentIntentId: intent.id,
+    orderId: intent.orderId,
+    eventType: 'RECONCILED',
+    actor: 'system:reconciler',
+    payload: { outcome: 'captured', paymentId: payment.id, amount: payment.amount },
+    correlationId,
+  });
+
+  await prisma.paymentIntent.update({
+    where: { id: intent.id },
+    data: { status: 'PSP_SUCCEEDED', pspPaymentId: payment.id },
+  });
+
+  await prisma.order.update({
+    where: { id: intent.orderId },
+    data: { status: 'CONFIRMED' },
+  });
+}
+
+async function handleAuthorizedReconciliation(intent: any, payment: any, correlationId: string) {
+  try {
+    // Replay through the same path as the webhook
+    await handlePaymentAuthorized(
+      intent,
+      {
+        id: payment.id,
+        amount: payment.amount,
+        status: payment.status,
+        notes: payment.notes,
+      },
+      correlationId,
+      correlationId
+    );
+  } catch {
+    await prisma.paymentIntent.update({
+      where: { id: intent.id },
+      data: { status: 'UNCERTAIN' },
+    });
   }
 }
 
-/**
- * Start the reconciler as a recurring setInterval.
- * Returns a cleanup function.
- */
-export function startReconciler(): () => void {
-  const interval = setInterval(() => {
-    reconcileUncertainTransactions().catch((err) => {
-      console.error('[Reconciler] Unexpected error:', err);
-    });
-  }, env.RECONCILER_POLL_INTERVAL_MS);
+async function handleFailedReconciliation(intent: any, payment: any, correlationId: string) {
+  await appendTransactionEvent({
+    paymentIntentId: intent.id,
+    orderId: intent.orderId,
+    eventType: 'RECONCILED',
+    actor: 'system:reconciler',
+    payload: { outcome: 'failed', paymentId: payment.id, status: payment.status },
+    correlationId,
+  });
 
-  console.info(`[Reconciler] Started — polling every ${env.RECONCILER_POLL_INTERVAL_MS}ms`);
+  await prisma.paymentIntent.update({
+    where: { id: intent.id },
+    data: { status: 'PSP_FAILED', pspPaymentId: payment.id },
+  });
 
-  return () => clearInterval(interval);
+  await prisma.order.update({
+    where: { id: intent.orderId },
+    data: { status: 'FAILED' },
+  });
+
+  await releaseLocksForIntent(intent);
+}
+
+async function releaseLocksForIntent(intent: any) {
+  if (intent.order?.cart?.items) {
+    const variantIds = intent.order.cart.items
+      .map((i: any) => i.variantId)
+      .filter((v: string | null): v is string => v !== null);
+
+    if (variantIds.length > 0) {
+      await releaseAllLocksForCheckout(variantIds, intent.order.cartId);
+    }
+  }
 }

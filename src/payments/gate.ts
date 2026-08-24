@@ -1,15 +1,6 @@
 import { prisma } from '../db/client.js';
 import { env } from '../config/env.js';
 
-// ---------------------------------------------------------------------------
-// Money-Action Gate
-//
-// Every payment action passes through this gate BEFORE any PSP call is made.
-// The gate is a separate module — independently auditable.
-// Produces one of three outcomes: APPROVED | REJECTED | REQUIRES_STEP_UP
-// Every decision has a structured reason written to the audit trail.
-// ---------------------------------------------------------------------------
-
 export type GateOutcome = 'APPROVED' | 'REJECTED' | 'REQUIRES_STEP_UP';
 
 export interface GateDecision {
@@ -24,11 +15,12 @@ export interface GateDecision {
 export interface GateContext {
   merchantId: string;
   agentSessionId: string;
-  amount: number;           // Server-side recomputed total (never trust client)
+  amount: number;
   currency: string;
-  cartTotal: number;        // Cart total as stored in DB
+  cartTotal: number;
   productIds: string[];
   correlationId: string;
+  stateHash?: string;
 }
 
 interface MerchantPolicy {
@@ -38,10 +30,6 @@ interface MerchantPolicy {
   allowedSkuCategories?: string[];
 }
 
-/**
- * Load policy for a merchant.
- * Falls back to platform-level defaults if merchant has no override.
- */
 async function loadPolicy(merchantId: string): Promise<MerchantPolicy> {
   const merchant = await prisma.merchant.findUniqueOrThrow({
     where: { id: merchantId },
@@ -58,27 +46,18 @@ async function loadPolicy(merchantId: string): Promise<MerchantPolicy> {
   };
 }
 
-/**
- * Count how many transactions this agent has successfully initiated in the last hour.
- */
 async function getVelocityCount(agentSessionId: string, merchantId: string): Promise<number> {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-
   return prisma.paymentIntent.count({
     where: {
       merchantId,
       order: { agentSessionId },
-      status: {
-        notIn: ['GATE_REJECTED', 'FAILED', 'PSP_FAILED'],
-      },
+      status: { notIn: ['GATE_REJECTED', 'FAILED', 'PSP_FAILED'] },
       createdAt: { gte: oneHourAgo },
     },
   });
 }
 
-/**
- * Get cumulative spend for an agent session.
- */
 async function getSessionSpend(agentSessionId: string, merchantId: string): Promise<number> {
   const result = await prisma.paymentIntent.aggregate({
     where: {
@@ -88,33 +67,12 @@ async function getSessionSpend(agentSessionId: string, merchantId: string): Prom
     },
     _sum: { amount: true },
   });
-
   return Number(result._sum.amount ?? 0);
 }
 
-// ---------------------------------------------------------------------------
-// The Gate — single entry point
-// ---------------------------------------------------------------------------
-
-/**
- * Run all gate checks for a checkout request.
- * Returns the first failing check, or APPROVED if all pass.
- *
- * Rules evaluated in order:
- * 1. Amount drift check (server-side total ≠ client stated amount)
- * 2. Per-transaction cap
- * 3. Per-session cumulative spend cap
- * 4. Velocity cap (N transactions per hour)
- * 5. SKU allowlist (if configured)
- * 6. Agent-purchasable flag on all products
- */
 export async function runGate(ctx: GateContext): Promise<GateDecision> {
   const policy = await loadPolicy(ctx.merchantId);
 
-  // ---------------------------------------------------------------------------
-  // Rule 1: Amount drift — server-recomputed total must match cart total in DB
-  // Never trust agent-stated amounts.
-  // ---------------------------------------------------------------------------
   if (Math.abs(ctx.amount - ctx.cartTotal) > 0.01) {
     return {
       decision: 'REJECTED',
@@ -122,13 +80,10 @@ export async function runGate(ctx: GateContext): Promise<GateDecision> {
       limit: ctx.cartTotal,
       requested: ctx.amount,
       currency: ctx.currency,
-      message: `Amount mismatch: agent requested ₹${ctx.amount}, but server-computed cart total is ₹${ctx.cartTotal}. Please re-fetch the cart and retry with the correct amount.`,
+      message: `Amount mismatch: requested ₹${ctx.amount}, server total is ₹${ctx.cartTotal}.`,
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Rule 2: Per-transaction cap
-  // ---------------------------------------------------------------------------
   if (ctx.amount > policy.perTransactionCapINR) {
     return {
       decision: 'REJECTED',
@@ -136,13 +91,10 @@ export async function runGate(ctx: GateContext): Promise<GateDecision> {
       limit: policy.perTransactionCapINR,
       requested: ctx.amount,
       currency: ctx.currency,
-      message: `Cart total ₹${ctx.amount} exceeds the ₹${policy.perTransactionCapINR} per-transaction limit set by merchant policy for agent-initiated purchases.`,
+      message: `₹${ctx.amount} exceeds ₹${policy.perTransactionCapINR} per-transaction limit.`,
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Rule 3: Per-session cumulative spend cap
-  // ---------------------------------------------------------------------------
   const sessionSpend = await getSessionSpend(ctx.agentSessionId, ctx.merchantId);
   const projectedSpend = sessionSpend + ctx.amount;
 
@@ -153,51 +105,81 @@ export async function runGate(ctx: GateContext): Promise<GateDecision> {
       limit: policy.perSessionCapINR,
       requested: projectedSpend,
       currency: ctx.currency,
-      message: `This purchase would bring session spend to ₹${projectedSpend}, exceeding the ₹${policy.perSessionCapINR} per-session limit. Requires explicit human confirmation to proceed.`,
+      message: `Session spend would reach ₹${projectedSpend}, exceeding ₹${policy.perSessionCapINR} limit.`,
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Rule 4: Velocity cap
-  // ---------------------------------------------------------------------------
   const velocityCount = await getVelocityCount(ctx.agentSessionId, ctx.merchantId);
-
   if (velocityCount >= policy.velocityTxPerHour) {
     return {
       decision: 'REQUIRES_STEP_UP',
       rule: 'velocity_cap',
       limit: policy.velocityTxPerHour,
       requested: velocityCount + 1,
-      message: `This agent session has initiated ${velocityCount} transactions in the last hour (limit: ${policy.velocityTxPerHour}). Explicit human confirmation required before continuing.`,
+      message: `${velocityCount} transactions in the last hour (limit: ${policy.velocityTxPerHour}). Human confirmation required.`,
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Rule 5: Agent-purchasable flag
-  // ---------------------------------------------------------------------------
   const nonPurchasable = await prisma.product.findMany({
-    where: {
-      id: { in: ctx.productIds },
-      agentPurchasable: false,
-    },
+    where: { id: { in: ctx.productIds }, agentPurchasable: false },
     select: { id: true, title: true },
   });
 
   if (nonPurchasable.length > 0) {
-    const titles = nonPurchasable.map((p) => p.title).join(', ');
+    const titles = nonPurchasable.map(p => p.title).join(', ');
     return {
       decision: 'REJECTED',
       rule: 'agent_purchasable',
-      message: `The following products are not available for agent-initiated purchases: ${titles}. The merchant has restricted these to human checkout only.`,
+      message: `Products not available for agent purchase: ${titles}.`,
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // All rules passed
-  // ---------------------------------------------------------------------------
   return {
     decision: 'APPROVED',
     rule: 'all_checks_passed',
-    message: `All gate checks passed. Transaction approved for ₹${ctx.amount}.`,
+    message: `All checks passed. ₹${ctx.amount} approved.`,
+  };
+}
+
+export async function runPreCaptureGate(
+  merchantId: string,
+  agentSessionId: string,
+  amount: number,
+  currency: string,
+  productIds: string[],
+  correlationId: string,
+): Promise<GateDecision> {
+  const inventoryChecks = await prisma.product.findMany({
+    where: { id: { in: productIds } },
+    include: { variants: { include: { inventory: true } } },
+  });
+
+  for (const product of inventoryChecks) {
+    for (const variant of product.variants) {
+      if (variant.inventory && variant.inventory.stock <= 0) {
+        return {
+          decision: 'REJECTED',
+          rule: 'inventory_depleted_pre_capture',
+          message: `${product.title} (${variant.title}) is out of stock. Capture skipped, funds will auto-release.`,
+        };
+      }
+    }
+  }
+
+  const policy = await loadPolicy(merchantId);
+  const velocityCount = await getVelocityCount(agentSessionId, merchantId);
+
+  if (velocityCount > policy.velocityTxPerHour) {
+    return {
+      decision: 'REJECTED',
+      rule: 'velocity_cap_pre_capture',
+      message: `Velocity limit breached by concurrent request. Capture skipped.`,
+    };
+  }
+
+  return {
+    decision: 'APPROVED',
+    rule: 'pre_capture_all_passed',
+    message: `Pre-capture checks passed. ₹${amount} ready for capture.`,
   };
 }

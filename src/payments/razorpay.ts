@@ -1,20 +1,28 @@
 import crypto from 'crypto';
+import Razorpay from 'razorpay';
+import { env } from '../config/env.js';
 
-// ---------------------------------------------------------------------------
-// Razorpay Client — stub for Phase 1
-// Full implementation in the Payment Phase.
-// Interfaces are defined so callers don't need to change when Phase 2 lands.
-// ---------------------------------------------------------------------------
+let razorpayInstance: Razorpay | null = null;
+
+function getRazorpay(): Razorpay {
+  if (!razorpayInstance) {
+    razorpayInstance = new Razorpay({
+      key_id: env.RAZORPAY_KEY_ID,
+      key_secret: env.RAZORPAY_KEY_SECRET,
+    });
+  }
+  return razorpayInstance;
+}
 
 export interface RazorpayOrderParams {
-  amount: number;        // In paise (INR × 100)
+  amount: number;
   currency: string;
-  receipt: string;       // Merchant's internal order reference
+  receipt: string;
   notes?: Record<string, string>;
 }
 
 export interface RazorpayOrderResult {
-  id: string;            // Razorpay Order ID: order_xxx
+  id: string;
   entity: 'order';
   amount: number;
   currency: string;
@@ -34,35 +42,13 @@ export interface RazorpayPaymentStatus {
   captured: boolean;
 }
 
-import Razorpay from 'razorpay';
-import { env } from '../config/env.js';
-
-let razorpayInstance: Razorpay | null = null;
-
-function getRazorpay(): Razorpay {
-  if (!razorpayInstance) {
-    if (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) {
-      throw new Error('Razorpay credentials not configured');
-    }
-    razorpayInstance = new Razorpay({
-      key_id: env.RAZORPAY_KEY_ID,
-      key_secret: env.RAZORPAY_KEY_SECRET,
-    });
-  }
-  return razorpayInstance;
-}
-
-/**
- * Create a Razorpay order.
- */
-export async function createRazorpayOrder(
-  params: RazorpayOrderParams,
-): Promise<RazorpayOrderResult> {
+export async function createRazorpayOrder(params: RazorpayOrderParams): Promise<RazorpayOrderResult> {
   const rzp = getRazorpay();
   const order: any = await rzp.orders.create({
     amount: params.amount,
     currency: params.currency,
     receipt: params.receipt,
+    payment_capture: false,
     notes: params.notes,
   } as any);
 
@@ -77,21 +63,22 @@ export async function createRazorpayOrder(
   };
 }
 
-/**
- * Fetch Razorpay order status (for reconciler).
- */
-export async function fetchRazorpayOrderStatus(
-  razorpayOrderId: string,
-): Promise<RazorpayPaymentStatus | null> {
+export async function capturePayment(paymentId: string, amount: number): Promise<any> {
+  const rzp = getRazorpay();
+  return (rzp.payments as any).capture(paymentId, amount);
+}
+
+export async function fetchRazorpayOrderStatus(razorpayOrderId: string): Promise<RazorpayPaymentStatus | null> {
   const rzp = getRazorpay();
   const payments: any = await rzp.orders.fetchPayments(razorpayOrderId);
-  
-  if (!payments || !payments.items || payments.items.length === 0) {
-    return null;
-  }
-  
-  // Get the most relevant payment (usually the latest or captured one)
-  const payment: any = payments.items.find((p: any) => p.status === 'captured') || payments.items[0];
+
+  if (!payments?.items?.length) return null;
+
+  const payment: any = payments.items.find((p: any) => p.status === 'captured')
+    || payments.items.find((p: any) => p.status === 'authorized')
+    || payments.items[0];
+
+  if (!payment) return null;
 
   return {
     id: payment.id,
@@ -105,15 +92,7 @@ export async function fetchRazorpayOrderStatus(
   };
 }
 
-/**
- * Verify Razorpay webhook signature.
- * Phase 1 stub — this IS safe to call because it's pure crypto.
- */
-export function verifyRazorpayWebhookSignature(
-  rawBody: string,
-  signature: string,
-  secret: string,
-): boolean {
+export function verifyRazorpayWebhookSignature(rawBody: string, signature: string, secret: string): boolean {
   const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
   const sigBuf = Buffer.from(signature);
   const expectedBuf = Buffer.from(expected);

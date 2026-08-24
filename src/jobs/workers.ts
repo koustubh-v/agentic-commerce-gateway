@@ -8,6 +8,10 @@ import { normalizeProducts } from '../ingestion/normalizer.js';
 import { upsertProductFromSync, markProductsStale } from '../ir/products.js';
 import { addWebhookNotifyJob } from './queues.js';
 import type { SyncJobPayload, OutboxJobPayload, WebhookNotifyPayload } from './queues.js';
+import { createRazorpayOrder } from '../payments/razorpay.js';
+import { appendTransactionEvent } from '../payments/event-log.js';
+import { mapRazorpayError } from '../commerce/errors.js';
+import { releaseAllLocksForCheckout } from '../commerce/inventory-lock.js';
 import crypto from 'crypto';
 
 // ---------------------------------------------------------------------------
@@ -174,14 +178,61 @@ export const outboxWorker = new Worker<OutboxJobPayload>(
         }
 
         case 'NOTIFY_AGENT': {
-          // Agent notification via callback URL — implemented in Phase 2
-          console.info(`[OutboxWorker] Agent notification for correlation ${outboxEntry.correlationId} — Phase 2`);
+          const targetUrl = payload['webhookUrl'] as string;
+          if (targetUrl) {
+            const response = await fetch(targetUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+              signal: AbortSignal.timeout(5000),
+            });
+            if (!response.ok) {
+              throw new Error(`Failed to notify agent at ${targetUrl}: ${response.status}`);
+            }
+          }
           break;
         }
 
         case 'CREATE_RAZORPAY_ORDER': {
-          // Razorpay PSP call — implemented in payment phase
-          console.info(`[OutboxWorker] Razorpay order creation — Payment Phase`);
+          let razorpayOrder: any;
+          try {
+            razorpayOrder = await createRazorpayOrder(payload as any);
+          } catch (err: any) {
+            await prisma.paymentIntent.update({
+              where: { id: outboxEntry.paymentIntentId },
+              data: { status: 'PSP_FAILED' },
+            });
+            const intent = await prisma.paymentIntent.findUniqueOrThrow({ 
+              where: { id: outboxEntry.paymentIntentId }, 
+              include: { order: { include: { cart: { include: { items: true } } } } } 
+            });
+            const variantIds = intent.order.cart.items.map(i => i.variantId).filter((v): v is string => v !== null);
+            await releaseAllLocksForCheckout(variantIds, intent.order.cartId);
+            const mapped = mapRazorpayError(err?.error?.code);
+            throw new Error(mapped.message);
+          }
+
+          await prisma.paymentIntent.update({
+            where: { id: outboxEntry.paymentIntentId },
+            data: {
+              status: 'PSP_INITIATED',
+              pspOrderId: razorpayOrder.id,
+            },
+          });
+
+          await appendTransactionEvent({
+            paymentIntentId: outboxEntry.paymentIntentId,
+            orderId: payload['receipt'] as string,
+            eventType: 'PSP_INITIATED',
+            actor: 'system:gateway',
+            payload: {
+              razorpayOrderId: razorpayOrder.id,
+              amount: razorpayOrder.amount,
+              currency: razorpayOrder.currency,
+              paymentCapture: 0,
+            },
+            correlationId: outboxEntry.correlationId,
+          });
           break;
         }
 

@@ -1,245 +1,205 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { getProducts, getProduct } from "../ir/products.js";
-import { createCart, updateCart, getCart } from "../ir/cart.js";
-import { createOrderFromCart, getOrder } from "../ir/orders.js";
-import { runGate } from "../payments/gate.js";
+import { commerceCreateCart, commerceAddItem, commerceInitiateCheckout, commerceGetTransactionStatus } from "../commerce/actions.js";
+import { GateRejectionError, CartStateError, InventoryLockError, mapRazorpayError } from "../commerce/errors.js";
 import { v4 as uuidv4 } from "uuid";
 
-// Store active SSE transports
 const transports = new Map<string, SSEServerTransport>();
 
 export function registerMcpServer(app: FastifyInstance) {
   const server = new Server(
-    {
-      name: "agent-commerce-gateway",
-      version: "0.1.0",
-    },
-    {
-      capabilities: {
-        tools: {},
-      },
-    }
+    { name: "agent-commerce-gateway", version: "0.1.0" },
+    { capabilities: { tools: {} } },
   );
 
-  // Register Tools
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-      tools: [
-        {
-          name: "search_products",
-          description: "Search for products by query or view all products.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              merchantId: { type: "string" },
-              query: { type: "string" },
-            },
-            required: ["merchantId"],
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [
+      {
+        name: "search_products",
+        description: "Search for products by query, category, or price range.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            merchantId: { type: "string", description: "The merchant to search within" },
+            query: { type: "string", description: "Search term for product title/description" },
+            category: { type: "string" },
+            maxPrice: { type: "number" },
           },
+          required: ["merchantId"],
         },
-        {
-          name: "get_product_details",
-          description: "Get detailed information about a product, including its variants.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              merchantId: { type: "string" },
-              productId: { type: "string" },
-            },
-            required: ["merchantId", "productId"],
+      },
+      {
+        name: "get_product_details",
+        description: "Get full details for a product including variants, inventory, and pricing.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            merchantId: { type: "string" },
+            productId: { type: "string" },
           },
+          required: ["merchantId", "productId"],
         },
-        {
-          name: "create_cart",
-          description: "Create a new shopping cart.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              merchantId: { type: "string" },
-              agentSessionId: { type: "string" },
-            },
-            required: ["merchantId"],
+      },
+      {
+        name: "create_cart",
+        description: "Create a new shopping cart for this session.",
+        inputSchema: {
+          type: "object",
+          properties: { merchantId: { type: "string" } },
+          required: ["merchantId"],
+        },
+      },
+      {
+        name: "add_to_cart",
+        description: "Add a product to the cart. Returns the updated cart with a state_hash for checkout.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            cartId: { type: "string" },
+            productId: { type: "string" },
+            variantId: { type: "string" },
+            quantity: { type: "number", default: 1 },
           },
+          required: ["cartId", "productId"],
         },
-        {
-          name: "add_to_cart",
-          description: "Add a product variant to an existing cart.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              cartId: { type: "string" },
-              productId: { type: "string" },
-              variantId: { type: "string" },
-              quantity: { type: "number" },
-            },
-            required: ["cartId", "productId", "quantity"],
+      },
+      {
+        name: "initiate_checkout",
+        description: "Initiate checkout for a cart. Requires the state_hash from the last cart operation. Returns a checkout token and Razorpay order for payment.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            cartId: { type: "string" },
+            stateHash: { type: "string", description: "The state_hash from the last add_to_cart response" },
+            idempotencyKey: { type: "string", description: "Unique key to prevent duplicate checkouts" },
           },
+          required: ["cartId", "stateHash"],
         },
-        {
-          name: "checkout_cart",
-          description: "Checkout the cart and get a payment link.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              cartId: { type: "string" },
-              customerEmail: { type: "string" },
-              customerName: { type: "string" },
-              agentCallbackUrl: { type: "string" },
-            },
-            required: ["cartId"],
-          },
+      },
+      {
+        name: "get_transaction_status",
+        description: "Get the status of a payment transaction including its full audit trail.",
+        inputSchema: {
+          type: "object",
+          properties: { transactionId: { type: "string" } },
+          required: ["transactionId"],
         },
-        {
-          name: "get_order_status",
-          description: "Get the current status of an order.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              orderId: { type: "string" },
-            },
-            required: ["orderId"],
-          },
-        },
-      ],
-    };
-  });
+      },
+    ],
+  }));
 
-  // Handle Tool Execution
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+
     try {
-      const { name, arguments: args } = request.params;
-      
       switch (name) {
         case "search_products": {
-          const { merchantId, query } = args as any;
-          const result = await getProducts(merchantId, query ? { search: query } : undefined);
-          return {
-            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-          };
+          const { merchantId, query, category, maxPrice } = args as any;
+          const result = await getProducts(merchantId, {
+            ...(query ? { search: query } : {}),
+            ...(category ? { category } : {}),
+            ...(maxPrice ? { maxPrice } : {}),
+          });
+          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
         }
+
         case "get_product_details": {
           const { merchantId, productId } = args as any;
           const result = await getProduct(merchantId, productId);
-          return {
-            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-          };
+          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
         }
+
         case "create_cart": {
-          const { merchantId, agentSessionId } = args as any;
-          const cart = await createCart(merchantId, { items: [], agentSessionId });
-          return {
-            content: [{ type: "text", text: JSON.stringify(cart, null, 2) }],
-          };
+          const { merchantId } = args as any;
+          const agentSessionId = uuidv4();
+          const cart = await commerceCreateCart(merchantId, agentSessionId);
+          return { content: [{ type: "text", text: JSON.stringify({ ...cart, agentSessionId }, null, 2) }] };
         }
+
         case "add_to_cart": {
           const { cartId, productId, variantId, quantity } = args as any;
-          const currentCart = await getCart(cartId);
-          if (!currentCart) throw new Error("Cart not found");
-          
-          const newItems = [...currentCart.items, { productId, variantId, quantity }] as any;
-          const cart = await updateCart(cartId, currentCart.merchantId, { 
-            items: newItems,
-            version: currentCart.version
-          });
-          return {
-            content: [{ type: "text", text: JSON.stringify(cart, null, 2) }],
-          };
+          const cart = await commerceAddItem(cartId, productId, variantId, quantity ?? 1);
+          return { content: [{ type: "text", text: JSON.stringify(cart, null, 2) }] };
         }
-        case "checkout_cart": {
-          const { cartId, customerEmail, customerName, agentCallbackUrl } = args as any;
-          
-          const cart = await getCart(cartId);
-          if (!cart) throw new Error("Cart not found");
 
+        case "initiate_checkout": {
+          const { cartId, stateHash, idempotencyKey } = args as any;
           const agentSessionId = uuidv4();
-          
-          // 1. Convert cart to order
-          const customerData = {
-            ...(customerEmail ? { email: customerEmail } : {}),
-            ...(customerName ? { name: customerName } : {})
-          };
-          
-          const order = await createOrderFromCart(
+          const result = await commerceInitiateCheckout(
             cartId,
-            cart.merchantId,
+            stateHash,
+            idempotencyKey ?? uuidv4(),
             agentSessionId,
-            agentCallbackUrl,
-            customerData
           );
-
-          // 2. Pass through the Money-Action Gate
-          const result = await runGate({
-            merchantId: order.merchantId,
-            agentSessionId,
-            amount: order.total,
-            currency: order.currency,
-            cartTotal: order.total,
-            productIds: cart.items.map((i: any) => i.productId),
-            correlationId: order.id
-          });
-
-          if (result.decision === 'REJECTED') {
-            return {
-              content: [{ type: "text", text: JSON.stringify({ error: result.message }, null, 2) }],
-              isError: true,
-            };
-          }
-
-          return {
-            content: [{ type: "text", text: JSON.stringify({
-              orderId: order.id,
-              status: order.status,
-              checkoutUrl: `https://checkout.example.com/${order.id}`,
-              gateOutcome: result.decision
-            }, null, 2) }],
-          };
+          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
         }
-        case "get_order_status": {
-          const { orderId } = args as any;
-          const order = await getOrder(orderId);
-          return {
-            content: [{ type: "text", text: JSON.stringify(order, null, 2) }],
-          };
+
+        case "get_transaction_status": {
+          const { transactionId } = args as any;
+          const result = await commerceGetTransactionStatus(transactionId);
+          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
         }
+
         default:
-          throw new Error(`Unknown tool: ${name}`);
+          return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
       }
     } catch (error: any) {
+      if (error instanceof GateRejectionError) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({
+            error: 'gate_rejected',
+            rule: error.rule,
+            decision: error.decision,
+            message: error.message,
+          }, null, 2) }],
+          isError: true,
+        };
+      }
+      if (error instanceof CartStateError) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({
+            error: 'cart_state_changed',
+            message: error.message,
+          }, null, 2) }],
+          isError: true,
+        };
+      }
+      if (error instanceof InventoryLockError) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({
+            error: 'inventory_locked',
+            variantId: error.variantId,
+            message: error.message,
+          }, null, 2) }],
+          isError: true,
+        };
+      }
       return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
+        content: [{ type: "text", text: JSON.stringify({
+          error: 'commerce_error',
+          message: error.message ?? 'An unexpected error occurred.',
+        }, null, 2) }],
         isError: true,
       };
     }
   });
 
-  // Fastify SSE Endpoint
   app.get("/mcp/sse", async (request: FastifyRequest, reply: FastifyReply) => {
     const sessionId = uuidv4();
     const transport = new SSEServerTransport("/mcp/message", reply.raw as any);
-    
     transports.set(sessionId, transport);
-    
-    request.raw.on("close", () => {
-      transports.delete(sessionId);
-    });
-
+    request.raw.on("close", () => { transports.delete(sessionId); });
     await server.connect(transport);
   });
 
-  // Fastify Message Endpoint
   app.post("/mcp/message", async (request: FastifyRequest, reply: FastifyReply) => {
-    // A simplified approach for single-server: we route to the first available transport
     const transport = Array.from(transports.values())[0];
     if (!transport) {
       return reply.status(404).send("No active SSE connection");
     }
-
     await transport.handlePostMessage(request.raw as any, reply.raw as any);
   });
 }

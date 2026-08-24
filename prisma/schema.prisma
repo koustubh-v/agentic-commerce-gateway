@@ -81,10 +81,12 @@ enum TransactionStatus {
   GATE_REJECTED
   OUTBOX_WRITTEN
   PSP_INITIATED
+  PSP_AUTHORIZED
   PSP_PENDING
   PSP_SUCCEEDED
   PSP_FAILED
-  UNCERTAIN        // Network timeout — reconciling
+  CAPTURE_SKIPPED
+  UNCERTAIN
   FULFILLMENT_TRIGGERED
   SETTLED
   REFUNDED
@@ -95,9 +97,13 @@ enum EventType {
   INTENT_CREATED
   BOUNDS_CHECKED
   GATE_DECISION
+  GATE_DECISION_PRE_CAPTURE
   OUTBOX_WRITTEN
   PSP_INITIATED
+  PSP_AUTHORIZED
+  PSP_CAPTURED
   PSP_WEBHOOK_RECEIVED
+  CAPTURE_SKIPPED
   RECONCILED
   FULFILLMENT_TRIGGERED
   FULFILLED
@@ -105,8 +111,8 @@ enum EventType {
   FAILED
   REFUNDED
   CANCELLED
-  ORDER_UPDATE_RECEIVED  // Merchant pushed an order update
-  STATUS_PROPAGATED      // We pushed status back to agent/merchant
+  ORDER_UPDATE_RECEIVED
+  STATUS_PROPAGATED
 }
 
 enum GateDecision {
@@ -391,9 +397,9 @@ model Cart {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  // Relations
   items       CartItem[]
   order       Order?
+  mandates    CartMandate[]
 
   @@index([merchantId, agentSessionId])
   @@index([merchantId, status])
@@ -555,23 +561,12 @@ model TransactionEvent {
   order           Order     @relation(fields: [orderId], references: [id])
 
   eventType       EventType
-
-  // Who triggered this event
-  actor           String    // "agent:<session_id>" | "system:reconciler" | "system:webhook" | "merchant:<id>"
-
-  // Structured payload (amounts, reasons, PSP references, etc.)
+  actor           String
   payload         Json      @default("{}")
-
-  // Threads the full flow together (agent request → outbox → PSP → webhook)
   correlationId   String
-
-  // PSP event dedup — unique constraint prevents processing the same webhook twice
   pspEventId      String?   @unique
-
-  // Optional tamper-evidence hash chain
-  prevHash        String?   // sha256(prev_event.id + prev_event.payload)
-
-  // Immutable timestamp — NEVER updated
+  prevHash        String?
+  cartStateHash   String?
   createdAt       DateTime  @default(now()) @db.Timestamptz
 
   @@index([paymentIntentId, createdAt])
@@ -613,4 +608,17 @@ model Outbox {
   @@index([status, nextRetryAt])
   @@index([paymentIntentId])
   @@map("outbox")
+}
+
+model CartMandate {
+  id          String   @id @default(uuid())
+  cartId      String
+  cart        Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  stateHash   String
+  issuedAt    DateTime @default(now())
+  expiresAt   DateTime
+  consumed    Boolean  @default(false)
+
+  @@index([cartId, stateHash])
+  @@map("cart_mandates")
 }
