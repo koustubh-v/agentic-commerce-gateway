@@ -1,94 +1,100 @@
 # Agent Commerce Gateway (ACG)
 
-The **Agent Commerce Gateway (ACG)** is a high-assurance infrastructure layer designed to bridge the gap between arbitrary merchant backends and autonomous AI agents. By normalizing heterogeneous commerce data into a **Canonical Intermediate Representation (IR)** and exposing it through standard agent protocols (MCP, ACP), ACG allows AI agents to securely browse catalogs and execute transactions on behalf of users.
+<img src="https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript" /> <img src="https://img.shields.io/badge/Node.js-20.x-green?logo=node.js" /> <img src="https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql" /> <img src="https://img.shields.io/badge/Redis-7-red?logo=redis" /> <img src="https://img.shields.io/badge/Fastify-4-black?logo=fastify" /> <img src="https://img.shields.io/badge/Prisma-5-white?logo=prisma" /> | Status: Beta
 
-At its core, ACG acts as a deterministic policy evaluator (the **Money-Action Gate**), ensuring safe money movement, preventing race conditions, and maintaining an immutable audit trail using a two-phase commit pattern.
+## Description
 
----
+The Agent Commerce Gateway (ACG) is a high-assurance infrastructure layer designed to bridge the gap between arbitrary merchant backends and autonomous AI agents. Current agent frameworks struggle to interact with non-standardized merchant APIs securely. ACG solves this by normalizing heterogeneous commerce data into a Canonical Intermediate Representation (IR) and exposing it through standard agent protocols like MCP and ACP. By acting as a deterministic policy evaluator (the Money-Action Gate), ACG allows AI agents to securely browse catalogs and execute transactions on behalf of users. Users and merchants can trust ACG because it guarantees strict limits on transactions, prevents inventory overselling through distributed locks, and maintains an immutable audit trail using a two-phase commit pattern, ensuring safe money movement even in fully autonomous systems.
 
-## 1. High-Level Architecture
+## Repository Structure
 
-The gateway abstracts the complexity of merchant APIs (Shopify, Magento, Custom) and exposes a unified, safe interface to LLM frameworks.
+```text
+.
+├── assets/                    # Architecture diagrams and process flow images
+├── prisma/                    # Database schema and migration files
+├── src/                       # Application source code
+│   ├── acp/                   # Agent Commerce Protocol router (REST)
+│   ├── cache/                 # Redis client and caching logic
+│   ├── commerce/              # Core transaction actions, state hashing, and locks
+│   ├── db/                    # Prisma client initialization
+│   ├── ingestion/             # Mode A/B merchant data synchronization logic
+│   ├── ir/                    # Canonical Intermediate Representation models
+│   ├── mcp/                   # Model Context Protocol stdio server
+│   ├── payments/              # Money-Action Gate, Outbox, and PSP (Razorpay) logic
+│   ├── webhooks/              # Inbound webhook handlers (Razorpay)
+│   ├── index.ts               # Application entry point
+│   └── server.ts              # Fastify server setup
+├── test/                      # Automated testing suite
+│   ├── e2e/                   # End-to-end checkout flow tests
+│   ├── fixtures/              # Database seeding and mock data
+│   ├── helpers/               # Testing context and mock builders
+│   ├── integration/           # Concurrency, state hash, and webhook idempotency tests
+│   └── unit/                  # Pure function tests (e.g., Gate policies)
+├── docker-compose.yml         # Container definitions for DB and Redis
+├── jest.config.ts             # Jest testing framework configuration
+├── package.json               # Project dependencies and scripts
+└── tsconfig.json              # TypeScript compiler configuration
+```
 
-![ACG High Level Architecture](assets/acg-architecture.png)
-<br/>
+## Architecture Diagrams
+
+The architecture is divided into logical phases to enforce a rigid security perimeter around money movement.
+
+### High-Level Translation
+The gateway abstracts merchant API complexity and exposes a unified, safe interface to LLM frameworks. It acts as a bidirectional translation layer.
 ![ACG Translation Layer](assets/acg-translation-layer.png)
 
-### Key Components:
-- **Canonical Store (IR):** The centralized PostgreSQL + Redis representation of commerce objects (Products, Inventory, Carts, Orders).
-- **Protocol Rendering Layer:**
-  - **MCP Server:** Exposes explicit tool calls (`search_products`, `initiate_checkout`) for Claude/Anthropic ecosystem agents.
-  - **ACP Router:** Exposes REST endpoints (`/feed`, `/checkout_sessions`) designed for OpenAI/Stripe spec compatibility.
-- **Money-Action Gate:** A synchronous policy evaluator enforcing velocity caps, per-transaction limits, and SKU allowlists *before* any money moves.
-
----
-
-## 2. Full Process Flow
-
-The lifecycle of an agentic transaction requires strict sequencing to avoid Time-of-Check to Time-of-Use (TOCTOU) attacks and inventory overselling.
-
-![ACG Process Flow](assets/acg-process-flow.jpeg)
-
----
-
-## 3. Transaction Mechanics (Phases A & B)
-
-This phase covers intent formation and the initial cryptographic bounding.
-
+### The Money-Action Gate (Phases A & B)
+During intent formation, the agent browses and builds a cart. The system reserves temporary inventory, hashes the state to prevent Time-of-Check to Time-of-Use attacks, and strictly evaluates the transaction against merchant financial limits (the Gate).
 ![Phase A & B: Intent & Gate Validation](assets/acg-phase-a-b.png)
 
-1. **Browsing & Cart Assembly:** The agent queries products and builds a cart. The system reserves temporary inventory and generates a `stateHash` (CartMandate) sealing the cart's exact state.
-2. **Checkout Initiation:** The agent submits the `cartId` and `stateHash`.
-3. **Money-Action Gate (Phase 1):** The system recomputes the hash to ensure prices haven't shifted. It acquires a distributed Redis lock to prevent concurrent checkouts of the last item. The transaction is then evaluated against the merchant's financial limits and velocity policies.
-4. **Outbox Write:** If approved, a `CREATE_RAZORPAY_ORDER` intent is written to the Outbox table.
-
----
-
-## 4. Payment Execution & Fulfillment (Phases C, D, & E)
-
-This phase covers asynchronous orchestration with the PSP (Razorpay) and bidirectional notification.
-
+### Payment Execution & Fulfillment (Phases C, D, & E)
+After the gate approves, an asynchronous outbox worker handles Razorpay provisioning. Following authorization, a secondary gate check runs prior to capturing funds. Finally, bidirectional callbacks notify the merchant and update the agent seamlessly.
 ![Phase C, D & E: PSP Orchestration & Fulfillment](assets/acg-phase-c-d-e.png)
 
-1. **Asynchronous PSP Init (Phase C):** The background `outboxWorker` safely provisions the Razorpay order (`payment_capture: 0`).
-2. **Authorization & Gate Phase 2 (Phase D):** After the user authorizes payment, Razorpay fires a webhook. The system runs `runPreCaptureGate` to ensure locks are intact before synchronously capturing the funds.
-3. **Graceful Failure:** If the Gate rejects the capture (e.g., inventory depleted forcefully), the funds are left uncaptured and automatically refunded.
-4. **Fulfillment Saga & Callbacks (Phase E):** Upon successful capture, the system writes `NOTIFY_MERCHANT` and `NOTIFY_AGENT` tasks to the Outbox. This alerts the backend to ship the goods and actively pushes the terminal success state to the AI agent, eliminating the need for indefinite polling.
-
----
-
-## 5. Resiliency & Reconciliation
-
-Because network requests drop and servers crash, ACG assumes external webhooks are unreliable.
-
+### Resiliency & Reconciliation
+Because network conditions fluctuate, ACG assumes webhooks may drop. The reconciler sweeps for stuck payments, polls the PSP, and forces them through the unified Gate pipeline, ensuring no transaction is silently abandoned or captured without bounds checks.
 ![Reconciliation Architecture](assets/acg-reconciliation-architecture.png)
 
-- **Outbox Pattern:** Protects against crashes between local DB commits and outgoing PSP/webhook HTTP calls by queueing intents with exponential backoff retries.
-- **Reconciliation Cron Job:** Sweeps for `PaymentIntents` stuck in `PSP_INITIATED` or `UNCERTAIN` for more than 2 minutes (while ignoring active checkouts < 15 minutes old).
-- **Unified Logic Path:** The Reconciler polls Razorpay directly. If it discovers a missed `authorized` payment, it synthesizes an event payload and feeds it into the exact same webhook handler pipeline, guaranteeing the Money-Action Gate rules are applied consistently.
+## Getting Started
 
----
+Follow these steps to set up the environment and run the gateway locally.
 
-## 6. Getting Started
-
-### Prerequisites
-- Node.js (v18+)
-- PostgreSQL
-- Redis
-- Razorpay Sandbox Account
-
-### Setup
-1. Clone the repository and install dependencies:
+1. Install dependencies:
    ```bash
    npm install
    ```
-2. Copy the `.env.example` file to `.env` and fill in your database, Redis, and Razorpay credentials.
-3. Apply database migrations:
+
+2. Copy the environment variables:
+   ```bash
+   cp .env.example .env
+   ```
+   Fill in your PostgreSQL, Redis, and Razorpay test credentials.
+
+3. Start PostgreSQL and Redis (via Docker):
+   ```bash
+   docker-compose up -d
+   ```
+
+4. Apply database migrations:
    ```bash
    npx prisma migrate dev
    ```
-4. Start the gateway:
+
+5. Start the development server:
    ```bash
    npm run dev
    ```
-The HTTP router (ACP/Webhooks) runs on port 3000, and the MCP stdio server handles agent tool calls locally.
+
+### Testing
+The project includes a robust testing environment utilizing Testcontainers for complete isolation during concurrency and integration testing. 
+For a complete guide on how to run tests and verify the Razorpay test-mode behaviors, refer to the [Testing Guide](test/testing_guide.md).
+
+To run the full test suite:
+```bash
+npm run test
+```
+
+## License
+
+This project is currently in the **Beta Phase** and was built exclusively for the Razorpay Buildathon. It is provided "as is" without warranty of any kind.
