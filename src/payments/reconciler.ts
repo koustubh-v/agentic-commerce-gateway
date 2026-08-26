@@ -49,7 +49,10 @@ export async function runReconciliation(): Promise<{ processed: number; errors: 
       const correlationId = `reconciler:${intent.id}`;
 
       if (!razorpayStatus) {
-        await handleNoPaymentFound(intent, correlationId);
+        const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+        if (intent.createdAt < fifteenMinutesAgo) {
+          await handleNoPaymentFound(intent, correlationId);
+        }
         processed++;
         continue;
       }
@@ -65,6 +68,13 @@ export async function runReconciliation(): Promise<{ processed: number; errors: 
 
         case 'failed':
           await handleFailedReconciliation(intent, razorpayStatus, correlationId);
+          break;
+
+        case 'created':
+          const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
+          if (intent.createdAt < fifteenMinsAgo) {
+            await handleFailedReconciliation(intent, razorpayStatus, correlationId);
+          }
           break;
 
         default:
