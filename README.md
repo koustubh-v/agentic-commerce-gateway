@@ -41,32 +41,32 @@ The architecture is divided into logical phases to enforce a rigid security peri
 ### Core Architecture
 The gateway abstracts the complexity of merchant APIs and exposes a unified, safe interface to LLM frameworks.
 ![ACG High Level Architecture](assets/acg-architecture.png)
-*Fig 1: Main ACG Architecture*
+<p align="center"><em>Fig 1: Main ACG Architecture</em></p>
 
 ### Process Flow
 The lifecycle of an agentic transaction requires strict sequencing to avoid attacks and inventory overselling.
 ![ACG Process Flow](assets/acg-process-flow.jpeg)
-*Fig 2: Overall Process Flow*
+<p align="center"><em>Fig 2: Overall Process Flow</em></p>
 
 ### High Level Translation
 The gateway acts as a bidirectional translation layer between merchant APIs and the agents.
 ![ACG Translation Layer](assets/acg-translation-layer.png)
-*Fig 3: Translation Layer*
+<p align="center"><em>Fig 3: Translation Layer</em></p>
 
 ### The Money Gate (Phases A & B)
 During intent formation, the agent browses and builds a cart. The system reserves temporary inventory, hashes the state to prevent tampering, and strictly evaluates the transaction against merchant financial limits.
 ![Phase A & B: Intent & Gate Validation](assets/acg-phase-a-b.png)
-*Fig 4.1: Phase A & B Intent & Gate Validation*
+<p align="center"><em>Fig 4.1: Phase A & B Intent & Gate Validation</em></p>
 
 ### Payment Execution & Fulfillment (Phases C, D, & E)
 After the gate approves, an asynchronous outbox worker handles payment provisioning. Following authorization, a secondary gate check runs prior to capturing funds. Finally, bidirectional callbacks notify the merchant and update the agent seamlessly.
 ![Phase C, D & E: PSP Orchestration & Fulfillment](assets/acg-phase-c-d-e.png)
-*Fig 4.2: Phase C, D & E Payment Execution & Fulfillment*
+<p align="center"><em>Fig 4.2: Phase C, D & E Payment Execution & Fulfillment</em></p>
 
 ### Resiliency & Reconciliation
 Because network conditions fluctuate, we assume webhooks may drop. The reconciler sweeps for stuck payments, polls the PSP, and forces them through the unified Gate pipeline, ensuring no transaction is silently abandoned or captured without bounds checks.
 ![Reconciliation Architecture](assets/acg-reconciliation-architecture.png)
-*Fig 5: Resiliency & Reconciliation Architecture*
+<p align="center"><em>Fig 5: Resiliency & Reconciliation Architecture</em></p>
 
 ## Getting Started
 
