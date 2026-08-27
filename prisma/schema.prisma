@@ -205,13 +205,17 @@ model MerchantSyncConfig {
   productsArrayPath String @default("$")
 
   // Optional auth for merchant's own API
-  authType    String?  // "bearer" | "api_key_header" | "basic" | "none"
-  authHeaderName String? // e.g. "Authorization", "X-API-Key"
-  authValueEncrypted String? // encrypted credential value
+  authType    String   @default("none")  // "none" | "api_key_header" | "basic" | "oauth2"
+  authConfigEncrypted String? // encrypted blob: header name, key, or oauth token endpoint
 
   // Polling config
-  pollIntervalMinutes Int    @default(5)
-  isPollingEnabled    Boolean @default(true)
+  pollIntervalMs      Int      @default(300000)
+  paginationConfig    Json?    // { type: 'cursor'|'page', param: 'page', maxPages: 20 }
+  active              Boolean  @default(true)
+  circuitState        String   @default("CLOSED") // CLOSED | OPEN | HALF_OPEN
+  consecutiveFailures Int      @default(0)
+  lastFailureAt       DateTime?
+  lastSuccessAt       DateTime?
 
   // Freshness
   staleAfterSeconds   Int    @default(600)
@@ -220,6 +224,20 @@ model MerchantSyncConfig {
   updatedAt   DateTime @updatedAt
 
   @@map("merchant_sync_configs")
+}
+
+model SyncRun {
+  id            String   @id @default(uuid())
+  configId      String
+  startedAt     DateTime @default(now())
+  finishedAt    DateTime?
+  status        String   // RUNNING | SUCCESS | PARTIAL | FAILED
+  itemsFetched  Int      @default(0)
+  itemsUpserted Int      @default(0)
+  itemsFailed   Int      @default(0)
+  errorSummary  Json?
+
+  @@map("sync_runs")
 }
 
 // ---------------------------------------------------------------------------
@@ -280,7 +298,8 @@ model Product {
   // Agent policy: can this product be purchased by an agent directly?
   agentPurchasable Boolean  @default(true)
 
-  // Data freshness
+  // Data freshness and diffing
+  contentHash String?       // SHA256 of canonical payload
   lastSyncedAt DateTime?
   isStale     Boolean       @default(false)
   staleReason String?
@@ -621,4 +640,39 @@ model CartMandate {
 
   @@index([cartId, stateHash])
   @@map("cart_mandates")
+}
+
+// ---------------------------------------------------------------------------
+// WEBHOOK DELIVERY — Fulfillment Dispatcher Log
+// ---------------------------------------------------------------------------
+
+model WebhookDelivery {
+  id            String   @id @default(uuid())
+  outboxId      String
+  merchantId    String
+  url           String
+  attempt       Int      @default(1)
+  statusCode    Int?
+  responseBody  String?
+  succeeded     Boolean  @default(false)
+  attemptedAt   DateTime @default(now())
+
+  @@index([outboxId])
+  @@map("webhook_deliveries")
+}
+
+// ---------------------------------------------------------------------------
+// AGENT CLIENT — OAuth2 Client Credentials
+// ---------------------------------------------------------------------------
+
+model AgentClient {
+  id               String   @id @default(uuid())
+  name             String
+  clientId         String   @unique
+  clientSecretHash String
+  scopes           String[] // e.g. ['catalog:read', 'cart:write', 'checkout:write']
+  revoked          Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  @@map("agent_clients")
 }

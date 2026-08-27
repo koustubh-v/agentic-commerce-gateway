@@ -3,10 +3,30 @@ import { prisma } from '../db/client.js';
 import { commerceCreateCart, commerceAddItem, commerceInitiateCheckout, commerceGetTransactionStatus, commerceGetOrderByCheckoutToken, commerceUpdateCart, commerceCancelCheckout } from '../commerce/actions.js';
 import { GateRejectionError, CartStateError, InventoryLockError } from '../commerce/errors.js';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcrypt';
+import { authenticateAgent, rateLimitAgent } from './auth.js';
 
 export async function acpRouter(fastify: FastifyInstance) {
 
-  fastify.get('/feed', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/oauth/token', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { client_id, client_secret, grant_type } = request.body as any;
+    if (grant_type !== 'client_credentials') {
+      return reply.status(400).send({ error: 'unsupported_grant_type' });
+    }
+
+    const client = await prisma.agentClient.findUnique({ where: { clientId: client_id } });
+    if (!client || client.revoked || !(await bcrypt.compare(client_secret, client.clientSecretHash))) {
+      return reply.status(401).send({ error: 'invalid_client' });
+    }
+
+    const accessToken = fastify.jwt.sign(
+      { sub: client.id, scopes: client.scopes },
+      { expiresIn: '1h' }
+    );
+    return reply.send({ access_token: accessToken, token_type: 'Bearer', expires_in: 3600 });
+  });
+
+  fastify.get('/feed', { preHandler: authenticateAgent('catalog:read') }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { merchantId } = request.query as { merchantId: string };
 
     if (!merchantId) {
@@ -35,7 +55,10 @@ export async function acpRouter(fastify: FastifyInstance) {
     return reply.send({ feed });
   });
 
-  fastify.post('/checkout_sessions', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/checkout_sessions', { preHandler: authenticateAgent('checkout:write') }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const agentId = (request as any).agentId;
+    await rateLimitAgent(agentId, 50, 3600); // Identity-based rate limit
+    
     const body = request.body as {
       merchantId: string;
       items: Array<{ productId: string; variantId?: string; quantity: number }>;
@@ -103,7 +126,7 @@ export async function acpRouter(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/checkout_sessions/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/checkout_sessions/:id', { preHandler: authenticateAgent('checkout:read') }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
 
     try {
@@ -114,7 +137,7 @@ export async function acpRouter(fastify: FastifyInstance) {
     }
   });
 
-  fastify.patch('/checkout_sessions/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.patch('/checkout_sessions/:id', { preHandler: authenticateAgent('checkout:write') }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const body = request.body as { items: Array<{ productId: string; variantId?: string; quantity: number }> };
     try {
@@ -125,7 +148,7 @@ export async function acpRouter(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/checkout_sessions/:id/complete', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/checkout_sessions/:id/complete', { preHandler: authenticateAgent('checkout:write') }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     try {
       const result = await commerceGetTransactionStatus(id);
@@ -135,7 +158,7 @@ export async function acpRouter(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/checkout_sessions/:id/cancel', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/checkout_sessions/:id/cancel', { preHandler: authenticateAgent('checkout:write') }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     try {
       await commerceCancelCheckout(id);

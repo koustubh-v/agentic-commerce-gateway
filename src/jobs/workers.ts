@@ -24,15 +24,34 @@ export const syncWorker = new Worker<SyncJobPayload>(
     const { merchantId, entityType } = job.data;
     const startedAt = new Date();
 
-    const syncLog = await prisma.syncLog.create({
-      data: { merchantId, status: 'RUNNING', entityType, startedAt },
+    const syncRun = await prisma.syncRun.create({
+      data: { configId: 'temp', status: 'RUNNING' }, // We'll update configId when we load config
     });
 
+    let config;
     try {
-      const config = await prisma.merchantSyncConfig.findUniqueOrThrow({
+      config = await prisma.merchantSyncConfig.findUniqueOrThrow({
         where: { merchantId },
         include: { merchant: { select: { currency: true } } },
       });
+
+      await prisma.syncRun.update({
+        where: { id: syncRun.id },
+        data: { configId: config.id }
+      });
+
+      if (config.circuitState === 'OPEN') {
+        const timeSinceFailure = config.lastFailureAt ? Date.now() - config.lastFailureAt.getTime() : 0;
+        if (timeSinceFailure < 5 * 60 * 1000) {
+          throw new Error('Circuit breaker is OPEN. Skipping sync.');
+        } else {
+          // Half open - try once
+          await prisma.merchantSyncConfig.update({
+            where: { id: config.id },
+            data: { circuitState: 'HALF_OPEN' }
+          });
+        }
+      }
 
       if (!config.productsEndpoint) {
         throw new Error('No products endpoint configured for merchant.');
@@ -69,13 +88,14 @@ export const syncWorker = new Worker<SyncJobPayload>(
       const normalized = normalizeProducts(rawProducts, merchantId, config.merchant.currency);
 
       // Write to IR store
-      let recordsProcessed = 0;
+      let recordsFetched = normalized.length;
+      let recordsUpserted = 0;
       let recordsFailed = 0;
 
       for (const product of normalized) {
         try {
-          await upsertProductFromSync(merchantId, product);
-          recordsProcessed++;
+          const result = await upsertProductFromSync(merchantId, product);
+          if (result) recordsUpserted++; // Not skipped by hash check
         } catch (err) {
           console.error(`[SyncWorker] Failed to upsert product ${product.externalId}:`, err);
           recordsFailed++;
@@ -84,37 +104,59 @@ export const syncWorker = new Worker<SyncJobPayload>(
 
       const durationMs = Date.now() - startedAt.getTime();
 
-      await prisma.syncLog.update({
-        where: { id: syncLog.id },
+      await prisma.syncRun.update({
+        where: { id: syncRun.id },
         data: {
           status: recordsFailed > 0 ? 'PARTIAL' : 'SUCCESS',
-          recordsProcessed,
-          recordsFailed,
-          completedAt: new Date(),
-          durationMs,
+          itemsFetched: recordsFetched,
+          itemsUpserted: recordsUpserted,
+          itemsFailed: recordsFailed,
+          finishedAt: new Date(),
         },
       });
 
+      await prisma.merchantSyncConfig.update({
+        where: { id: config.id },
+        data: {
+          circuitState: 'CLOSED',
+          consecutiveFailures: 0,
+          lastSuccessAt: new Date()
+        }
+      });
+
       console.info(
-        `[SyncWorker] merchant=${merchantId} processed=${recordsProcessed} failed=${recordsFailed} duration=${durationMs}ms`,
+        `[SyncWorker] merchant=${merchantId} fetched=${recordsFetched} upserted=${recordsUpserted} failed=${recordsFailed} duration=${durationMs}ms`,
       );
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
 
-      await prisma.syncLog.update({
-        where: { id: syncLog.id },
+      await prisma.syncRun.update({
+        where: { id: syncRun.id },
         data: {
           status: 'FAILED',
-          errorMessage,
-          completedAt: new Date(),
-          durationMs: Date.now() - startedAt.getTime(),
+          errorSummary: errorMessage,
+          finishedAt: new Date(),
         },
       });
+
+      if (config) {
+        const nextFailures = (config.consecutiveFailures || 0) + 1;
+        await prisma.merchantSyncConfig.update({
+          where: { id: config.id },
+          data: {
+            consecutiveFailures: nextFailures,
+            lastFailureAt: new Date(),
+            circuitState: nextFailures >= 5 ? 'OPEN' : config.circuitState
+          }
+        });
+      }
 
       // Mark products as stale so agents get the freshness warning
       await markProductsStale(merchantId, `Sync failed: ${errorMessage}`);
 
-      throw err; // Re-throw so BullMQ retries
+      if (config?.circuitState !== 'OPEN') {
+        throw err; // Re-throw so BullMQ retries unless circuit just opened
+      }
     }
   },
   {
@@ -166,7 +208,10 @@ export const outboxWorker = new Worker<OutboxJobPayload>(
           const signingSecret = payload['signingSecret'] as string;
 
           if (targetUrl) {
+            const intent = await prisma.paymentIntent.findUniqueOrThrow({ where: { id: outboxEntry.paymentIntentId } });
             await addWebhookNotifyJob({
+              outboxId: outboxEntry.id,
+              merchantId: intent.merchantId,
               targetUrl,
               event: 'order.created',
               payload: payload['orderData'] as Record<string, unknown>,
@@ -275,30 +320,57 @@ export const outboxWorker = new Worker<OutboxJobPayload>(
 export const webhookNotifyWorker = new Worker<WebhookNotifyPayload>(
   QUEUES.WEBHOOK_NOTIFY,
   async (job) => {
-    const { targetUrl, event, payload, signingSecret, correlationId } = job.data;
+    const { outboxId, merchantId, targetUrl, event, payload, signingSecret, correlationId } = job.data;
 
     const body = JSON.stringify({ event, data: payload, correlationId, timestamp: Date.now() });
-
-    // HMAC-SHA256 signature
     const signature = crypto.createHmac('sha256', signingSecret).update(body).digest('hex');
 
-    const response = await fetch(targetUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-ACG-Signature': `sha256=${signature}`,
-        'X-ACG-Event': event,
-        'X-Correlation-ID': correlationId,
-      },
-      body,
-      signal: AbortSignal.timeout(10000), // 10s timeout
-    });
+    try {
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-ACG-Signature': `sha256=${signature}`,
+          'X-ACG-Event': event,
+          'X-Correlation-ID': correlationId,
+        },
+        body,
+        signal: AbortSignal.timeout(8000),
+      });
 
-    if (!response.ok) {
-      throw new Error(`Webhook delivery to ${targetUrl} failed with ${response.status}`);
+      const responseBody = await response.text().catch(() => null);
+
+      await prisma.webhookDelivery.create({
+        data: {
+          outboxId,
+          merchantId,
+          url: targetUrl,
+          statusCode: response.status,
+          responseBody: responseBody ? responseBody.substring(0, 1000) : null,
+          succeeded: response.ok,
+          attempt: job.attemptsMade,
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Webhook delivery failed with ${response.status}`);
+      }
+
+      console.info(`[WebhookWorker] Delivered event "${event}" to ${targetUrl} (correlation: ${correlationId})`);
+    } catch (err: any) {
+      await prisma.webhookDelivery.create({
+        data: {
+          outboxId,
+          merchantId,
+          url: targetUrl,
+          statusCode: 0,
+          responseBody: err.message,
+          succeeded: false,
+          attempt: job.attemptsMade,
+        }
+      });
+      throw err;
     }
-
-    console.info(`[WebhookWorker] Delivered event "${event}" to ${targetUrl} (correlation: ${correlationId})`);
   },
   {
     connection: redisBullMQ,

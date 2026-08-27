@@ -1,4 +1,5 @@
 import { prisma } from '../db/client.js';
+import crypto from 'crypto';
 import {
   getCachedProducts,
   setCachedProducts,
@@ -214,7 +215,24 @@ export async function upsertProductFromSync(
   data: Omit<IRProduct, 'id' | 'variants' | 'isStale' | 'lastSyncedAt'> & {
     variants?: Array<Omit<IRProductVariant, 'id' | 'inventory'> & { stock?: number | undefined }> | undefined;
   },
-): Promise<IRProduct> {
+): Promise<IRProduct | null> {
+  const contentHash = crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
+
+  // Skip update if hash matches
+  const existing = await prisma.product.findUnique({
+    where: { merchantId_externalId: { merchantId, externalId: data.externalId } },
+    select: { id: true, contentHash: true }
+  });
+
+  if (existing?.contentHash === contentHash) {
+    // Only bump lastSyncedAt
+    await prisma.product.update({
+      where: { id: existing.id },
+      data: { lastSyncedAt: new Date(), isStale: false, staleReason: null }
+    });
+    return null; // Return null to indicate no deep update happened
+  }
+
   const product = await prisma.$transaction(async (tx) => {
     const upserted = await tx.product.upsert({
       where: { merchantId_externalId: { merchantId, externalId: data.externalId } },
@@ -234,6 +252,7 @@ export async function upsertProductFromSync(
         status: data.status,
         availability: data.availability,
         agentPurchasable: data.agentPurchasable,
+        contentHash,
         isStale: false,
         lastSyncedAt: new Date(),
       },
@@ -251,6 +270,7 @@ export async function upsertProductFromSync(
         status: data.status,
         availability: data.availability,
         agentPurchasable: data.agentPurchasable,
+        contentHash,
         isStale: false,
         staleReason: null,
         lastSyncedAt: new Date(),

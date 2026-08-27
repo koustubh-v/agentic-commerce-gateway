@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import fastifyJwt from '@fastify/jwt';
 import { env } from './config/env.js';
 import { merchantRoutes } from './merchants/router.js';
 import { irRoutes } from './ir/router.js';
@@ -41,6 +42,10 @@ export async function buildServer() {
       error: 'Too Many Requests',
       message: 'Rate limit exceeded. Please retry after a moment.',
     }),
+  });
+
+  await app.register(fastifyJwt, {
+    secret: env.JWT_SECRET,
   });
 
   // ---------------------------------------------------------------------------

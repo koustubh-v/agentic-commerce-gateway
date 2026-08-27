@@ -30,6 +30,7 @@
     "@fastify/swagger-ui": "^4.0.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@prisma/client": "^5.22.0",
+    "bcrypt": "^6.0.0",
     "bullmq": "^5.30.1",
     "dotenv": "^16.4.7",
     "fastify": "^4.28.1",
@@ -45,6 +46,7 @@
   "devDependencies": {
     "@testcontainers/postgresql": "^12.1.0",
     "@testcontainers/redis": "^12.1.0",
+    "@types/bcrypt": "^6.0.0",
     "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.2",

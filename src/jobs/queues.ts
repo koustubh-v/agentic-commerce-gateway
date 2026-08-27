@@ -64,6 +64,8 @@ export interface OutboxJobPayload {
 }
 
 export interface WebhookNotifyPayload {
+  outboxId: string;
+  merchantId: string;
   targetUrl: string;
   event: string;
   payload: Record<string, unknown>;
