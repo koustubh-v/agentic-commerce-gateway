@@ -8,4 +8,4 @@ dist/
 coverage/
 .prisma/
 prisma/migrations/dev.db
-./Architechture Guidelines/
+Architecture Guidelines/
