@@ -9,8 +9,11 @@ The Agent Commerce Gateway is a secure infrastructure layer built to bridge the 
 ```text
 .
 ├── assets/                    # Architecture diagrams and process flow images
+├── dashboard/                 # Next.js Merchant & Admin Frontend
+│   ├── public/                # Static assets (images, videos)
+│   └── src/                   # React components, pages, and NextAuth APIs
 ├── prisma/                    # Database schema and migration files
-├── src/                       # Application source code
+├── src/                       # Application source code (Backend)
 │   ├── acp/                   # Agent Commerce Protocol router (REST)
 │   ├── cache/                 # Redis client and caching logic
 │   ├── commerce/              # Core transaction actions, state hashing, and locks
