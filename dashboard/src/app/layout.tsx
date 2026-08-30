@@ -1,56 +1,25 @@
-import './globals.css';
+import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import Link from 'next/link';
-import { LayoutDashboard, Database, Activity, KeyRound, Settings } from 'lucide-react';
+import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ['latin'], display: 'swap' });
 
-export const metadata = {
-  title: 'ACG Merchant Dashboard',
-  description: 'Manage Agent Commerce Gateway',
+export const metadata: Metadata = {
+  title: {
+    default: 'Agent Commerce Gateway',
+    template: '%s | ACG',
+  },
+  description: 'The universal translation layer that makes any e-commerce store AI-ready. Powered by Razorpay.',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <div className="dashboard-layout">
-          {/* Sidebar */}
-          <aside className="sidebar">
-            <div className="sidebar-header">
-              <Activity size={24} color="#3384f5" />
-              <span>ACG Dashboard</span>
-            </div>
-            
-            <nav className="sidebar-nav">
-              <Link href="/" className="nav-link">
-                <LayoutDashboard size={18} /> Overview
-              </Link>
-              <Link href="/catalog" className="nav-link">
-                <Database size={18} /> Catalog Sync
-              </Link>
-              <Link href="/audit" className="nav-link">
-                <Activity size={18} /> Audit Log
-              </Link>
-              <Link href="/agents" className="nav-link">
-                <KeyRound size={18} /> Agent Clients
-              </Link>
-              <Link href="/settings" className="nav-link">
-                <Settings size={18} /> Settings
-              </Link>
-            </nav>
-          </aside>
-
-          {/* Main Content */}
-          <main className="main-content">
-            {children}
-          </main>
-        </div>
-      </body>
+    <html lang="en" suppressHydrationWarning className={inter.className}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }

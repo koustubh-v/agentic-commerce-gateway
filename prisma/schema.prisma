@@ -176,10 +176,27 @@ model Merchant {
   carts           Cart[]
   orders          Order[]
   paymentIntents  PaymentIntent[]
+  users           User[]
 
   @@index([slug])
   @@index([apiKeyPrefix])
   @@map("merchants")
+}
+
+// ---------------------------------------------------------------------------
+// USER — Auth credentials (separate from Merchant for clean separation)
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  role         String    @default("merchant") // "merchant" | "admin"
+  merchantId   String?
+  merchant     Merchant? @relation(fields: [merchantId], references: [id])
+  createdAt    DateTime  @default(now())
+
+  @@map("users")
 }
 
 // ---------------------------------------------------------------------------

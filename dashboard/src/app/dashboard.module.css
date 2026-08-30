@@ -1,0 +1,333 @@
+.dashboardTheme {
+  --bg-color: #ffffff;
+  --sidebar-bg: #fcfcfc;
+  --border-color: #e5e7eb;
+  --text-primary: #171717;
+  --text-secondary: #525252;
+  --text-tertiary: #a3a3a3;
+  --hover-bg: #f4f4f5;
+  --focus-ring: rgba(23, 23, 23, 0.15);
+  
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  min-height: 100vh;
+  font-family: var(--font-sans), sans-serif;
+}
+
+.page {
+  padding: 3rem 4rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2.5rem;
+}
+
+.pageTitle {
+  font-size: 1.75rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+  margin: 0 0 0.25rem 0;
+}
+
+.pageSubtitle {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+/* Buttons */
+.btnPrimary {
+  background: #171717;
+  color: #ffffff;
+  border: none;
+  padding: 0.5rem 1.25rem;
+  border-radius: 9999px; /* Pill */
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btnPrimary:hover {
+  background: #262626;
+  transform: translateY(-1px);
+}
+
+.btnSecondary {
+  background: #f5f5f5;
+  color: #171717;
+  border: 1px solid #e5e5e5;
+  padding: 0.5rem 1.25rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.btnSecondary:hover {
+  background: #e5e5e5;
+}
+
+/* Cards (Sarvam "Explore" style) */
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+}
+
+.metricCard {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.metricCard:hover {
+  border-color: #d4d4d8;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+.iconBadge {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.metricValue {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.metricLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+}
+
+.metricContext {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+/* Form / Quickstart Sections */
+.formSection {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 2.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.stepRow {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+.stepRow:last-child {
+  margin-bottom: 0;
+}
+
+.stepNumber {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #f4f4f5;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid #e4e4e7;
+}
+
+.stepContent {
+  flex: 1;
+}
+
+.stepTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.formInput {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  color: var(--text-primary);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  outline: none;
+}
+.formInput:focus {
+  border-color: #a1a1aa;
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+.formInput.mono {
+  font-family: monospace;
+}
+
+/* Activity / Table */
+.activityCard {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.activityCardHeader {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+}
+
+.activityList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.activityItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.875rem;
+}
+.activityItem:last-child { border-bottom: none; }
+.activityItemTitle { font-weight: 500; color: var(--text-primary); margin-right: 8px; }
+.activityItemSub { color: var(--text-secondary); }
+
+/* Status Colors */
+.statusSuccess { color: #10b981; font-weight: 500; }
+.statusError { color: #ef4444; font-weight: 500; }
+.statusWarning { color: #f59e0b; font-weight: 500; }
+
+/* Tooltip (re-using but themed) */
+.tooltipContainer { display: inline-flex; align-items: center; position: relative; margin-left: 0.5rem; cursor: help; }
+.tooltipIcon { color: var(--text-tertiary); transition: color 0.2s ease; }
+.tooltipContainer:hover .tooltipIcon { color: var(--text-primary); }
+.tooltipContent {
+  position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%) translateY(-8px);
+  background: #171717; color: #ffffff; padding: 0.5rem 0.75rem; border-radius: 8px;
+  font-size: 0.75rem; line-height: 1.4; width: 220px; text-align: center;
+  opacity: 0; visibility: hidden; transition: all 0.2s ease; pointer-events: none; z-index: 10;
+}
+.tooltipContainer:hover .tooltipContent { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(-4px); }
+
+/* Sidebar */
+.sidebar {
+  width: 250px;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  flex-shrink: 0;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+}
+
+.sidebarLogo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 2.5rem;
+}
+
+.sidebarLogoText {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+}
+
+.sidebarLogoSub {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: -2px;
+}
+
+.sidebarNav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.navSectionLabel {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 1rem 0 0.5rem 0.5rem;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 9999px; /* Pill hover */
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.navLink:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.navLink.active {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.sidebarFooter {
+  margin-top: auto;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
