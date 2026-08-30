@@ -2,7 +2,9 @@
 
 <img src="https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript" /> <img src="https://img.shields.io/badge/Node.js-20.x-green?logo=node.js" /> <img src="https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql" /> <img src="https://img.shields.io/badge/Redis-7-red?logo=redis" /> <img src="https://img.shields.io/badge/Fastify-4-black?logo=fastify" /> <img src="https://img.shields.io/badge/Prisma-5-white?logo=prisma" /> <img src="https://img.shields.io/badge/Status-Beta-orange" />
 
-The Agent Commerce Gateway is a secure infrastructure layer built to bridge the gap between merchant backends and autonomous AI agents. Right now, most agent frameworks struggle to interact with various merchant APIs safely. We solve this by normalizing different commerce data into a single standard format. By acting as a strict rule evaluator before any money moves, we allow AI agents to safely browse catalogs and complete transactions for users. Everyone can trust this gateway because it guarantees strict limits on transactions, prevents selling items that are out of stock through distributed locks, and keeps a permanent log of all actions. This ensures safe money movement even in fully autonomous systems.
+Agent Commerce Gateway connects merchant stores with autonomous AI agents securely. Today, AI agents have a hard time buying things safely because every merchant API is different. ACG fixes this by acting as a universal translator and a strict security guard. It lets agents browse products and check out, but only if they follow your rules.
+
+For example, you can set a spending limit or restrict which categories an agent can buy from. ACG checks these rules before any money moves. It also prevents overselling and keeps a permanent log of everything the agent does. This makes fully autonomous shopping safe and reliable.
 
 ## Repository Structure
 
@@ -45,47 +47,45 @@ The Agent Commerce Gateway is a secure infrastructure layer built to bridge the 
 
 ### Core Architecture
 
-The gateway enforces a rigid security perimeter around every agentic transaction. The diagram below shows the full data flow from an AI agent through the policy gate to the payment provider.
+The gateway acts as a strict security guard for every transaction. The diagram below shows how data flows from an AI agent, through the policy gate, and finally to the payment provider.
 
 ![ACG High Level Architecture](assets/acg-architecture.png)
 <p align="center"><em>Fig 1: Main ACG Architecture</em></p>
 
 ### Process Flow
 
-The lifecycle of an agentic transaction requires strict sequencing to avoid attacks and inventory overselling.
+The steps for an agentic transaction happen in a very specific order to prevent attacks and stop items from being oversold.
 
 ![ACG Process Flow](assets/acg-process-flow.jpeg)
 <p align="center"><em>Fig 2: Overall Process Flow</em></p>
 
 ### High Level Translation
 
-The gateway acts as a bidirectional translation layer between merchant APIs and the agents.
+The gateway sits in the middle and acts as a translator between the merchant's store and the AI agent.
 
 ![ACG Translation Layer](assets/acg-translation-layer.png)
 <p align="center"><em>Fig 3: Translation Layer</em></p>
 
 ### The Money Gate (Phases A & B)
 
-During intent formation, the agent browses and builds a cart. The system reserves temporary inventory, hashes the state to prevent tampering, and strictly evaluates the transaction against merchant financial limits.
+When the agent browses and builds a cart, the system temporarily reserves the items. It then creates a special code (a hash) to make sure nothing is changed secretly, and checks the transaction against your financial rules.
 
 ![Phase A & B: Intent & Gate Validation](assets/acg-phase-a-b.png)
 <p align="center"><em>Fig 4.1: Phase A & B Intent & Gate Validation</em></p>
 
 ### Payment Execution & Fulfillment (Phases C, D, & E)
 
-After the gate approves, an asynchronous outbox worker handles payment provisioning. Following authorization, a secondary gate check runs prior to capturing funds. Finally, bidirectional callbacks notify the merchant and update the agent seamlessly.
+After passing the rules, a background worker sets up the payment. Once the payment is authorized, a second check happens before actually capturing the funds. Finally, it tells the merchant and the agent that the order is complete.
 
 ![Phase C, D & E: PSP Orchestration & Fulfillment](assets/acg-phase-c-d-e.png)
 <p align="center"><em>Fig 4.2: Phase C, D & E Payment Execution & Fulfillment</em></p>
 
 ### Resiliency & Reconciliation
 
-Because network conditions fluctuate, we assume webhooks may drop. The reconciler sweeps for stuck payments, polls the PSP, and forces them through the unified Gate pipeline, ensuring no transaction is silently abandoned or captured without bounds checks.
+Sometimes network connections fail and webhooks drop. We built a background system that looks for stuck payments, checks their status with the payment provider, and makes sure they still go through our safety checks. This means no order is ever left behind or captured without following your rules.
 
 ![Reconciliation Architecture](assets/acg-reconciliation-architecture.png)
 <p align="center"><em>Fig 5: Resiliency & Reconciliation Architecture</em></p>
-
----
 
 ## Getting Started
 
@@ -102,7 +102,7 @@ Follow these steps to set up the environment and run the gateway locally.
    ```
    Fill in your PostgreSQL, Redis, and Razorpay test credentials.
 
-3. Start PostgreSQL and Redis (via Docker):
+3. Start PostgreSQL and Redis using Docker:
    ```bash
    docker-compose up -d
    ```
@@ -117,40 +117,38 @@ Follow these steps to set up the environment and run the gateway locally.
    npm run dev
    ```
 
----
-
 ## Demo Script
 
-The `scripts/demo/` folder contains two scripts that simulate the full agentic commerce flow end-to-end. They are intended for demo recordings and can be deleted afterwards.
+The `scripts/demo/` folder has two scripts that show the whole agentic commerce flow from start to finish. You can use them for demo recordings and delete them later.
 
-### Step 1 — Seed the database
+### Step 1: Seed the database
 
-This creates a test merchant and a product catalog in the database.
+This creates a test merchant and adds some products to the database.
 
 ```bash
 npx ts-node --esm scripts/demo/demo-ingest.ts
 ```
 
 What it does:
-- Creates a `Demo Merchant` record with spend and category policies
-- Injects sample products (e.g. a laptop, headphones) into the catalog
-- Prints the merchant ID for reference
+- Creates a `Demo Merchant` with spending and category rules
+- Adds sample products like a laptop and headphones
+- Prints the merchant ID so you can use it
 
-### Step 2 — Run the AI agent
+### Step 2: Run the AI agent
 
-This script simulates an AI agent autonomously completing a purchase through ACG.
+This script acts like an AI agent autonomously buying a product through ACG.
 
 ```bash
 npx ts-node --esm scripts/demo/demo-agent.ts
 ```
 
 What it does:
-1. Registers itself as a new `AgentClient` (OAuth client credentials)
-2. Calls `POST /acp/oauth/token` to obtain a Bearer token
-3. Finds the first available product from the catalog
-4. Calls `POST /acp/checkout_sessions` to initiate checkout through the policy gate
-5. On **gate approval**: prints the Razorpay Order ID and a human-in-the-loop checkout URL
-6. On **gate rejection**: prints the blocking rule — visible instantly in the Merchant Dashboard audit log
+1. Registers itself to get access credentials
+2. Gets a secure token to talk to the API
+3. Finds a product from the catalog
+4. Starts a checkout and passes it through the policy gate
+5. If **approved**: prints the Razorpay Order ID and a link for a human to complete the payment
+6. If **blocked**: prints the reason it was blocked, which also shows up in your Merchant Dashboard
 
 ### Expected output (approved)
 
@@ -188,22 +186,20 @@ Rule Enforced: MAX_SPEND
 Demo tip: Check your Merchant Dashboard Audit logs. The block was recorded instantly.
 ```
 
----
-
 ## MCP Server (Model Context Protocol)
 
-ACG exposes a native MCP server over **Server-Sent Events (SSE)**. This allows Claude Desktop, Cursor, and any MCP-compatible agent host to connect and use ACG tools directly without writing REST calls.
+ACG includes a server using the Model Context Protocol (MCP) over **Server-Sent Events (SSE)**. This lets tools like Claude Desktop and Cursor connect directly to ACG without needing to write complex REST API calls.
 
 ### Transport
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/mcp/sse` | `GET` | Establishes the SSE connection. Keep this open. |
-| `/mcp/message` | `POST` | Sends tool calls from the agent host to ACG. |
+| `/mcp/sse` | `GET` | Starts the SSE connection. You should keep this open. |
+| `/mcp/message` | `POST` | Sends actions from the agent to ACG. |
 
 ### Connecting Claude Desktop
 
-Add the following to your `claude_desktop_config.json`:
+Add this to your `claude_desktop_config.json`:
 
 ```json
 {
@@ -218,7 +214,7 @@ Add the following to your `claude_desktop_config.json`:
 
 ### Connecting Cursor
 
-In Cursor settings → MCP → Add server:
+Go to Cursor settings → MCP → Add server and add:
 
 ```json
 {
@@ -229,16 +225,18 @@ In Cursor settings → MCP → Add server:
 
 ### Available MCP Tools
 
-| Tool | Required args | Description |
+| Tool | Required arguments | Description |
 |---|---|---|
-| `search_products` | `merchantId` | Search products by query, category, or max price |
-| `get_product_details` | `merchantId`, `productId` | Full product details including variants and inventory |
-| `create_cart` | `merchantId` | Start a new agent shopping session |
-| `add_to_cart` | `cartId`, `productId` | Add an item; returns `state_hash` for tamper-proof checkout |
-| `initiate_checkout` | `cartId`, `stateHash` | Pass the gate, create Razorpay order, return checkout token |
-| `get_transaction_status` | `transactionId` | Full audit trail for any transaction |
+| `search_products` | `merchantId` | Search for products by name, category, or maximum price |
+| `get_product_details` | `merchantId`, `productId` | Get full details about a product, including options and stock |
+| `create_cart` | `merchantId` | Start a new shopping session for the agent |
+| `add_to_cart` | `cartId`, `productId` | Add an item to the cart and get a secure `state_hash` back |
+| `initiate_checkout` | `cartId`, `stateHash` | Check rules, create a Razorpay order, and get a checkout token |
+| `get_transaction_status` | `transactionId` | See the full history and status of any transaction |
 
 ### Example MCP tool call sequence
+
+Here is how an agent might use the tools step-by-step:
 
 ```
 1. search_products(merchantId: "mrch_xxx", query: "laptop")
@@ -250,21 +248,17 @@ In Cursor settings → MCP → Add server:
 5. get_transaction_status(transactionId: "<checkoutSessionId>")
 ```
 
----
-
 ## REST API Reference
 
-All endpoints are prefixed with `/acp`. The server runs on port `3000` by default.
+All endpoints start with `/acp`. By default, the server runs on port `3000`.
 
 ### Authentication
 
-ACG uses **OAuth 2.0 Client Credentials** flow. Every agent must first obtain a Bearer token.
-
----
+ACG uses standard OAuth 2.0 to authenticate. Every agent needs to get a secure token first.
 
 #### `POST /acp/oauth/token`
 
-Exchange client credentials for a short-lived Bearer token (1 hour TTL).
+Trade your client credentials for a token that lasts for 1 hour.
 
 **Request body**
 
@@ -286,26 +280,24 @@ Exchange client credentials for a short-lived Bearer token (1 hour TTL).
 }
 ```
 
-**Error responses**
+**Common Errors**
 
-| Status | Error | Cause |
+| Status | Error | What it means |
 |---|---|---|
-| `400` | `unsupported_grant_type` | Only `client_credentials` is supported |
-| `401` | `invalid_client` | Wrong credentials or revoked client |
-
----
+| `400` | `unsupported_grant_type` | You must use `client_credentials` |
+| `401` | `invalid_client` | The credentials are wrong or the access was revoked |
 
 #### `GET /acp/feed`
 
-Returns the agent-purchasable product catalog for a merchant in normalized IR format.
+Get a clean list of all products the agent is allowed to buy.
 
-**Required scope:** `catalog:read`
+**Required permission:** `catalog:read`
 
 **Query parameters**
 
-| Param | Type | Required | Description |
-|---|---|---|---|
-| `merchantId` | string | yes | The merchant whose catalog to fetch |
+| Parameter | Required | Description |
+|---|---|---|
+| `merchantId` | yes | The merchant you want to get products from |
 
 **Response `200`**
 
@@ -315,7 +307,7 @@ Returns the agent-purchasable product catalog for a merchant in normalized IR fo
     {
       "id": "prod_xxx",
       "title": "Sony WH-1000XM5",
-      "description": "...",
+      "description": "Noise cancelling headphones",
       "price": 24999,
       "currency": "INR",
       "availability": "IN_STOCK",
@@ -327,15 +319,13 @@ Returns the agent-purchasable product catalog for a merchant in normalized IR fo
 }
 ```
 
----
-
 #### `POST /acp/checkout_sessions`
 
-Creates a cart, adds items, runs the policy gate, and provisions a Razorpay order — all in a single atomic call.
+Create a cart, add items, check safety rules, and set up a Razorpay order all at once.
 
-**Required scope:** `checkout:write`
+**Required permission:** `checkout:write`
 
-**Rate limit:** 50 requests per agent per hour.
+**Rate limit:** 50 requests per agent every hour.
 
 **Request body**
 
@@ -349,16 +339,16 @@ Creates a cart, adds items, runs the policy gate, and provisions a Razorpay orde
 }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `merchantId` | string | yes | Target merchant |
-| `items` | array | yes | At least one item required |
-| `items[].productId` | string | yes | Product to purchase |
-| `items[].variantId` | string | no | Specific variant |
-| `items[].quantity` | number | yes | Must be ≥ 1 |
-| `agentCallbackUrl` | string | no | URL ACG will POST fulfilment events to |
+| Field | Required | Description |
+|---|---|---|
+| `merchantId` | yes | The merchant you are buying from |
+| `items` | yes | The items you want to buy |
+| `items[].productId` | yes | The specific product ID |
+| `items[].variantId` | no | A specific option like size or color |
+| `items[].quantity` | yes | How many you want to buy (must be at least 1) |
+| `agentCallbackUrl` | no | Where ACG should send updates about the order |
 
-**Response `200` — Gate approved**
+**Response `200` — If Approved**
 
 ```json
 {
@@ -372,17 +362,17 @@ Creates a cart, adds items, runs the policy gate, and provisions a Razorpay orde
 }
 ```
 
-**Error responses**
+**Common Errors**
 
-| Status | Error | Cause |
+| Status | Error | What it means |
 |---|---|---|
-| `400` | validation error | Missing `merchantId` or empty `items` |
-| `403` | `gate_rejected` | Policy rule blocked the transaction (includes `rule` field) |
-| `409` | `cart_state_changed` | Cart was modified after state hash was computed |
-| `409` | `inventory_locked` | Another session holds the inventory lock |
-| `500` | server error | Unexpected failure |
+| `400` | validation error | You missed the `merchantId` or didn't add any `items` |
+| `403` | `gate_rejected` | A safety rule blocked the purchase |
+| `409` | `cart_state_changed` | The cart was changed after it was securely locked |
+| `409` | `inventory_locked` | Someone else is currently buying this item |
+| `500` | server error | Something went wrong on our end |
 
-**Gate rejection example**
+**Example of a rejected order**
 
 ```json
 {
@@ -391,19 +381,17 @@ Creates a cart, adds items, runs the policy gate, and provisions a Razorpay orde
 }
 ```
 
----
-
 #### `GET /acp/checkout_sessions/:id`
 
-Returns the current status and full audit trail for a checkout session.
+Check the status of a checkout session and see its entire history.
 
-**Required scope:** `checkout:read`
+**Required permission:** `checkout:read`
 
 **Path parameters**
 
-| Param | Description |
+| Parameter | Description |
 |---|---|
-| `id` | The `checkoutSessionId` from the create response |
+| `id` | The `checkoutSessionId` you got when creating the session |
 
 **Response `200`**
 
@@ -422,13 +410,11 @@ Returns the current status and full audit trail for a checkout session.
 }
 ```
 
----
-
 #### `PATCH /acp/checkout_sessions/:id`
 
-Update the items in an existing checkout session before it is paid.
+Change the items in a checkout session before paying for it.
 
-**Required scope:** `checkout:write`
+**Required permission:** `checkout:write`
 
 **Request body**
 
@@ -449,23 +435,19 @@ Update the items in an existing checkout session before it is paid.
 }
 ```
 
----
-
 #### `POST /acp/checkout_sessions/:id/complete`
 
-Marks a session as complete and returns its final status. Idempotent.
+Mark a session as complete. This returns the final status of the order.
 
-**Required scope:** `checkout:write`
+**Required permission:** `checkout:write`
 
-**Response `200`** — Same shape as `GET /acp/checkout_sessions/:id`.
-
----
+**Response `200`** — This returns the exact same information as `GET /acp/checkout_sessions/:id`.
 
 #### `POST /acp/checkout_sessions/:id/cancel`
 
-Cancels a pending checkout session and releases any inventory locks.
+Cancel a checkout session that hasn't been paid for yet, freeing up the items for others.
 
-**Required scope:** `checkout:write`
+**Required permission:** `checkout:write`
 
 **Response `200`**
 
@@ -473,20 +455,16 @@ Cancels a pending checkout session and releases any inventory locks.
 { "status": "cancelled" }
 ```
 
----
-
 ### Testing
 
-The project includes a robust testing environment utilizing Testcontainers for complete isolation during concurrency and integration testing.
-For a complete guide on how to run tests and verify the Razorpay test behaviors, refer to the [Testing Guide](test/testing_guide.md).
+We use Testcontainers to make sure tests are completely isolated and reliable.
+If you want to run tests and see how Razorpay integration works, please read the [Testing Guide](test/testing_guide.md).
 
-To run the full test suite:
+To run all the tests:
 ```bash
 npm run test
 ```
 
----
-
 ## License
 
-This project is currently in the **Beta Phase** and was built exclusively for the Razorpay Buildathon. It is provided "as is" without warranty of any kind.
+This project is currently in Beta and was built for the Razorpay Buildathon. It is provided "as is" without warranty of any kind.
