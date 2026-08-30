@@ -3,6 +3,8 @@ import type { Metadata } from 'next';
 import type { CSSProperties } from 'react';
 import CursorGrid from '@/components/ui/CursorGrid';
 import LandingEffects from '@/components/ui/LandingEffects';
+import ScrollReveal from '@/components/ui/ScrollReveal';
+import LogoMarquee from '@/components/ui/LogoMarquee';
 import styles from './page.module.css';
 import treatment from './razorpay-treatment.module.css';
 import heroFocus from './hero-focus.module.css';
@@ -82,45 +84,165 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section style={{ borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb', background: '#ffffff', padding: '2rem 4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', fontWeight: 600, color: '#a3a3a3', letterSpacing: '0.05em' }}>
-        <p style={{ margin: 0 }}>ONE LAYER. EVERY TRANSACTION COVERED.</p>
-        <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-          <span>DISCOVER</span><div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#e5e5e5' }} />
-          <span>DECIDE</span><div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#e5e5e5' }} />
-          <span>PAY</span><div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#e5e5e5' }} />
-          <span>FULFIL</span><div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#e5e5e5' }} />
-          <span>RECONCILE</span>
+      <section style={{ background: '#ffffff', borderBottom: '1px solid #e5e7eb', overflow: 'hidden' }}>
+        <LogoMarquee />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', padding: '3rem 0 5rem 5rem' }}>
+          <div style={{ borderRight: '1px dashed #d4d4d8', paddingRight: '4rem' }}>
+            <ScrollReveal
+              baseOpacity={0.15}
+              baseRotation={0}
+              blurStrength={0}
+              containerClassName="text-left w-full"
+              textClassName="hero-statement"
+              enableBlur={false}
+            >
+              Commerce is shifting from clicks to conversations. Yet agents still transact outside any guardrail. Agent Commerce Gateway brings every autonomous purchase into a governed layer, so transactions happen only at the speed your policies allow.
+            </ScrollReveal>
+          </div>
+          <div />
         </div>
       </section>
 
-      <section style={{ background: '#f9fafb', padding: '6rem 4rem', textAlign: 'center', borderBottom: '1px solid #e5e7eb' }}>
-        <p style={{ maxWidth: '800px', margin: '0 auto', fontSize: '2rem', fontWeight: 500, color: '#171717', lineHeight: 1.3, letterSpacing: '-0.02em' }}>
-          Commerce is shifting from clicks to conversations.<br />
-          ACG makes sure every agent-led transaction remains <em style={{ fontStyle: 'normal', color: '#171717', fontWeight: 600, background: 'linear-gradient(120deg, #f4f4f5 0%, #e5e5e5 100%)', padding: '0 0.5rem', borderRadius: '4px' }}>secure, governed and human-ready.</em>
-        </p>
-      </section>
+      <section id="platform" style={{
+        background: 'linear-gradient(135deg, #e0e7ff 0%, #ede9fe 30%, #ccfbf1 100%)',
+        position: 'relative',
+        overflow: 'hidden',
+        padding: '6rem 0 8rem',
+      }}>
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          backgroundImage: 'linear-gradient(to right, #CBD5E1 1px, transparent 1px), linear-gradient(to bottom, #CBD5E1 1px, transparent 1px)',
+          backgroundSize: '64px 64px',
+          backgroundPosition: 'center top',
+          opacity: 0.6,
+        }} />
+        <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: '1px', background: '#CBD5E1', opacity: 0.8 }} />
+        <div style={{ position: 'absolute', top: 0, bottom: 0, left: '25%', width: '1px', background: '#CBD5E1', opacity: 0.4, borderLeft: '1px dashed #CBD5E1' }} />
+        <div style={{ position: 'absolute', top: 0, bottom: 0, right: '25%', width: '1px', background: '#CBD5E1', opacity: 0.4, borderLeft: '1px dashed #CBD5E1' }} />
 
-      <section id="platform" style={{ padding: '8rem 4rem', background: '#ffffff' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <div style={{ marginBottom: '4rem' }}>
-            <p style={{ fontSize: '0.85rem', fontWeight: 600, color: '#525252', letterSpacing: '0.05em', marginBottom: '1rem', textTransform: 'uppercase' }}>THE AGENT COMMERCE LAYER</p>
-            <h2 style={{ fontSize: '3.5rem', fontWeight: 600, color: '#171717', lineHeight: 1.1, letterSpacing: '-0.03em', margin: 0 }}>Designed for the way<br />commerce is changing.</h2>
-          </div>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2rem' }}>
-            {capabilities.map(([number, title, copy], index) => (
-              <article key={number} style={{ padding: '2.5rem', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '16px', transition: 'all 0.3s ease', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a3a3a3', fontFamily: 'monospace' }}>{number}</span>
-                <div style={{ width: '48px', height: '48px', background: '#f4f4f5', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '1.5rem 0', border: '1px solid #e5e5e5' }}>
-                  <div style={{ width: '16px', height: '16px', border: '2px solid #171717', borderRadius: index === 1 ? '50% 50% 50% 0' : index === 2 ? '50% 0 50% 50%' : '4px', transform: 'rotate(45deg)' }} />
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 4rem', position: 'relative' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '2rem' }}>
+              <div style={{ flex: '0 0 40%', paddingTop: '2rem' }}>
+                <h2 style={{ fontSize: '3rem', fontWeight: 600, color: '#0f172a', lineHeight: 1.1, letterSpacing: '-0.03em', margin: '0 0 1.25rem 0' }}>
+                  The Commerce Layer<br />for the Agentic Era
+                </h2>
+                <p style={{ fontSize: '1.05rem', color: '#475569', lineHeight: 1.7, margin: 0 }}>
+                  We give every AI agent a governed path to transact. From product discovery to policy to payment, ACG is the missing infrastructure layer.
+                </p>
+              </div>
+
+              <div style={{
+                flex: '0 0 52%',
+                background: '#ffffff',
+                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06), 0 10px 15px -3px rgba(0,0,0,0.1)',
+                padding: '2.5rem',
+                transform: 'rotate(1deg)',
+                position: 'relative',
+                marginTop: '1rem',
+              }}>
+                <div style={{
+                  position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)',
+                  width: 44, height: 44, borderRadius: '50%', background: '#f8fafc',
+                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  zIndex: 10,
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
                 </div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#171717', marginBottom: '0.75rem' }}>{title}</h3>
-                <p style={{ fontSize: '0.95rem', color: '#525252', lineHeight: 1.6, margin: 0 }}>{copy}</p>
-              </article>
-            ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem', marginBottom: '1.5rem', marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', color: '#64748b', textTransform: 'uppercase' }}>Policy Layer</span>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#0f172a', margin: 0 }}>Policy Enforcement Gate</h3>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', color: '#0f172a', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Spend Controls (Live)</div>
+                    <p style={{ fontSize: '0.9rem', color: '#475569', lineHeight: 1.6, margin: 0 }}>Enable consent-based, pre-authorized payments that allow AI agents to transact securely within approved spending limits.</p>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', color: '#0f172a', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Category Rules (Live)</div>
+                    <p style={{ fontSize: '0.9rem', color: '#475569', lineHeight: 1.6, margin: 0 }}>Allowlist and blocklist product categories so agents only buy exactly what they are authorised to purchase.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{
+                width: '65%',
+                background: '#ffffff',
+                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06), 0 10px 15px -3px rgba(0,0,0,0.1)',
+                padding: '2rem 2.5rem',
+                transform: 'rotate(-1deg)',
+                position: 'relative',
+                marginLeft: '3rem',
+              }}>
+                <div style={{
+                  position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)',
+                  width: 44, height: 44, borderRadius: '50%', background: '#f8fafc',
+                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  zIndex: 10,
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                  </svg>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem', marginBottom: '1rem', marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', color: '#64748b', textTransform: 'uppercase' }}>Catalog Layer</span>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#0f172a', margin: 0 }}>Universal Catalog API</h3>
+                </div>
+                <p style={{ fontSize: '0.9rem', color: '#475569', lineHeight: 1.6, margin: 0 }}>Connect any WooCommerce store, custom merchant API or product database. ACG normalizes it into a clean, queryable feed any agent can browse, filter and act on instantly.</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{
+                width: '58%',
+                background: '#ffffff',
+                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06), 0 10px 15px -3px rgba(0,0,0,0.1)',
+                padding: '2.5rem',
+                transform: 'rotate(1deg)',
+                position: 'relative',
+              }}>
+                <div style={{
+                  position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)',
+                  width: 44, height: 44, borderRadius: '50%', background: '#f8fafc',
+                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  zIndex: 10,
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+                  </svg>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem', marginBottom: '1.5rem', marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', color: '#64748b', textTransform: 'uppercase' }}>Payment Layer</span>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#0f172a', margin: 0 }}>Secure Checkout</h3>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 2rem' }}>
+                  {['Razorpay order creation', 'Human approval gate', 'No credential exposure', 'Webhook fulfilment', 'Audit ledger', 'Reconciliation'].map((item) => (
+                    <div key={item} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: '#475569', fontFamily: 'monospace' }}>
+                      <div style={{ width: '5px', height: '5px', background: '#0f172a', flexShrink: 0 }} />
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
+
+
+
+
+
+
 
       <section id="security" style={{ padding: '8rem 4rem', background: '#f9fafb', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6rem', alignItems: 'center' }}>

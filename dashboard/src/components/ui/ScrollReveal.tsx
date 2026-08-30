@@ -9,9 +9,9 @@ gsap.registerPlugin(ScrollTrigger);
 interface ScrollRevealProps {
   children: ReactNode;
   scrollContainerRef?: RefObject<HTMLElement | null>;
-  enableBlur?: boolean;
   baseOpacity?: number;
   baseRotation?: number;
+  enableBlur?: boolean;
   blurStrength?: number;
   containerClassName?: string;
   textClassName?: string;
@@ -22,23 +22,27 @@ interface ScrollRevealProps {
 const ScrollReveal: React.FC<ScrollRevealProps> = ({
   children,
   scrollContainerRef,
-  enableBlur = true,
   baseOpacity = 0.1,
   baseRotation = 3,
+  enableBlur = true,
   blurStrength = 4,
   containerClassName = '',
   textClassName = '',
   rotationEnd = 'bottom bottom',
-  wordAnimationEnd = 'bottom bottom'
+  wordAnimationEnd = 'bottom center',
 }) => {
-  const containerRef = useRef<HTMLHeadingElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const splitText = useMemo(() => {
     const text = typeof children === 'string' ? children : '';
     return text.split(/(\s+)/).map((word, index) => {
       if (word.match(/^\s+$/)) return word;
       return (
-        <span className="inline-block word" key={index}>
+        <span
+          className="word"
+          key={index}
+          style={{ display: 'inline-block', color: '#d0d0d0', willChange: 'color' }}
+        >
           {word}
         </span>
       );
@@ -49,71 +53,78 @@ const ScrollReveal: React.FC<ScrollRevealProps> = ({
     const el = containerRef.current;
     if (!el) return;
 
-    const scroller = scrollContainerRef && scrollContainerRef.current ? scrollContainerRef.current : window;
-
-    gsap.fromTo(
-      el,
-      { transformOrigin: '0% 50%', rotate: baseRotation },
-      {
-        ease: 'none',
-        rotate: 0,
-        scrollTrigger: {
-          trigger: el,
-          scroller,
-          start: 'top bottom',
-          end: rotationEnd,
-          scrub: true
-        }
-      }
-    );
-
+    const scroller = scrollContainerRef?.current ?? window;
     const wordElements = el.querySelectorAll<HTMLElement>('.word');
 
-    gsap.fromTo(
-      wordElements,
-      { opacity: baseOpacity, willChange: 'opacity' },
-      {
-        ease: 'none',
-        opacity: 1,
-        stagger: 0.05,
-        scrollTrigger: {
-          trigger: el,
-          scroller,
-          start: 'top bottom-=20%',
-          end: wordAnimationEnd,
-          scrub: true
-        }
-      }
-    );
-
-    if (enableBlur) {
+    if (baseRotation !== 0) {
       gsap.fromTo(
-        wordElements,
-        { filter: `blur(${blurStrength}px)` },
+        el,
+        { transformOrigin: '0% 50%', rotate: baseRotation },
         {
           ease: 'none',
-          filter: 'blur(0px)',
-          stagger: 0.05,
+          rotate: 0,
           scrollTrigger: {
             trigger: el,
             scroller,
-            start: 'top bottom-=20%',
-            end: wordAnimationEnd,
-            scrub: true
-          }
+            start: 'top bottom',
+            end: rotationEnd,
+            scrub: true,
+          },
         }
       );
     }
 
+    const totalWords = wordElements.length;
+    const triggers: ScrollTrigger[] = [];
+
+    wordElements.forEach((word, i) => {
+      const progress = i / totalWords;
+      const startOffset = `${Math.round(progress * 60)}%`;
+
+      const st = gsap.fromTo(
+        word,
+        { color: '#d0d0d0' },
+        {
+          color: '#171717',
+          ease: 'none',
+          scrollTrigger: {
+            trigger: el,
+            scroller,
+            start: `top bottom-=${startOffset}`,
+            end: `top center-=${startOffset}`,
+            scrub: true,
+          },
+        }
+      );
+
+      if (enableBlur) {
+        gsap.fromTo(
+          word,
+          { filter: `blur(${blurStrength}px)` },
+          {
+            filter: 'blur(0px)',
+            ease: 'none',
+            scrollTrigger: {
+              trigger: el,
+              scroller,
+              start: `top bottom-=${startOffset}`,
+              end: `top center-=${startOffset}`,
+              scrub: true,
+            },
+          }
+        );
+      }
+    });
+
     return () => {
-      ScrollTrigger.getAll().forEach(trigger => trigger.kill());
+      ScrollTrigger.getAll().forEach((t) => t.kill());
     };
-  }, [scrollContainerRef, enableBlur, baseRotation, baseOpacity, rotationEnd, wordAnimationEnd, blurStrength]);
+  }, [scrollContainerRef, baseRotation, rotationEnd, wordAnimationEnd, enableBlur, blurStrength, baseOpacity]);
 
   return (
-    <h2 ref={containerRef} className={`my-5 ${containerClassName}`}>
-      <p className={`text-[clamp(1.6rem,4vw,3rem)] leading-[1.5] font-semibold ${textClassName}`}>{splitText}</p>
-    </h2>
+    <div ref={containerRef} className={`my-5 ${containerClassName}`}>
+      <p className={`leading-[1.5] font-medium ${textClassName}`}>{splitText}</p>
+    </div>
   );
 };
 

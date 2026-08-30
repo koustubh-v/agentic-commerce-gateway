@@ -504,3 +504,24 @@ tbody tr:hover { background: rgba(255,255,255,0.02); }
 .w-full { width: 100%; }
 .relative { position: relative; }
 .overflow-hidden { overflow: hidden; }
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-100%); }
+}
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
+.hero-statement {
+  font-size: 1.4rem;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+@media (min-width: 768px) {
+  .hero-statement {
+    font-size: 2.4rem;
+  }
+}
