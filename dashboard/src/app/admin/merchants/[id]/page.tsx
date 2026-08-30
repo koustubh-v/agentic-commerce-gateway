@@ -31,7 +31,7 @@ export default async function MerchantDetailPage({ params }: { params: Promise<{
         </div>
       </div>
 
-      {/* Merchant info grid */}
+      {}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
         <div className="card">
           <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '1rem' }}>Merchant Info</div>
@@ -73,7 +73,7 @@ export default async function MerchantDetailPage({ params }: { params: Promise<{
         </div>
       </div>
 
-      {/* Stats row */}
+      {}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
         {[
           { label: 'Products', value: merchant._count.products },
@@ -87,7 +87,7 @@ export default async function MerchantDetailPage({ params }: { params: Promise<{
         ))}
       </div>
 
-      {/* Recent products */}
+      {}
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '1rem' }}>Recent Products</div>
         <div className="table-wrapper">
@@ -110,7 +110,7 @@ export default async function MerchantDetailPage({ params }: { params: Promise<{
         </div>
       </div>
 
-      {/* Recent sync runs */}
+      {}
       <div className="card">
         <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '1rem' }}>Recent Sync Runs</div>
         <div className="table-wrapper">

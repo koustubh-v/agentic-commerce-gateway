@@ -2,13 +2,9 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../db/client.js';
 
 export async function discoveryRouter(fastify: FastifyInstance) {
-  
-  // -------------------------------------------------------------------------
-  // AI Plugin Manifest
-  // Tells ChatGPT-like agents how to interact with this ACP implementation
-  // -------------------------------------------------------------------------
+
   fastify.get('/.well-known/ai-plugin.json', async (request: FastifyRequest, reply: FastifyReply) => {
-    // Return standard AI Plugin manifest for ACP
+    
     return reply.send({
       schema_version: "v1",
       name_for_human: "Agent Commerce Gateway",
@@ -20,7 +16,7 @@ export async function discoveryRouter(fastify: FastifyInstance) {
       },
       api: {
         type: "openapi",
-        url: "https://your-domain.com/openapi.yaml", // Replace with actual OpenAPI spec URL
+        url: "https://your-domain.com/openapi.yaml", 
         is_user_authenticated: false
       },
       logo_url: "https://your-domain.com/logo.png",
@@ -29,10 +25,6 @@ export async function discoveryRouter(fastify: FastifyInstance) {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // llms.txt (Human/LLM readable summary)
-  // Used by agents that scrape the site but don't have tool calling
-  // -------------------------------------------------------------------------
   fastify.get('/llms.txt', async (request: FastifyRequest, reply: FastifyReply) => {
     const { merchantId } = request.query as { merchantId?: string };
     
@@ -49,7 +41,7 @@ export async function discoveryRouter(fastify: FastifyInstance) {
         
         const products = await prisma.product.findMany({
           where: { merchantId, status: 'ACTIVE', agentPurchasable: true },
-          take: 50 // Limit to avoid massive text files
+          take: 50 
         });
 
         content += "### Products\n\n";

@@ -137,7 +137,7 @@ async function handleCapturedReconciliation(intent: any, payment: any, correlati
 
 async function handleAuthorizedReconciliation(intent: any, payment: any, correlationId: string) {
   try {
-    // Replay through the same path as the webhook
+    
     await handlePaymentAuthorized(
       intent,
       {

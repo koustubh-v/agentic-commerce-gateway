@@ -4,14 +4,6 @@ import { validateApiKey } from '../merchants/service.js';
 import crypto from 'crypto';
 import { API_PREFIX } from '../config/constants.js';
 
-// ---------------------------------------------------------------------------
-// Inbound Merchant Webhook Handler
-// POST /webhooks/merchant/:merchantId
-//
-// Merchant → ACG: order updates (cancel, fulfill, refund, ship)
-// Auth: X-ACG-Merchant-Key (API key) + X-ACG-Signature (HMAC of body)
-// ---------------------------------------------------------------------------
-
 export async function merchantWebhookRoutes(app: FastifyInstance): Promise<void> {
 
   app.post(`${API_PREFIX}/webhooks/merchant/:merchantId`, async (req, reply) => {
@@ -23,14 +15,12 @@ export async function merchantWebhookRoutes(app: FastifyInstance): Promise<void>
       return reply.code(401).send({ error: 'Missing X-ACG-Merchant-Key header.' });
     }
 
-    // Validate API key
     const resolvedMerchantId = await validateApiKey(apiKey);
 
     if (!resolvedMerchantId || resolvedMerchantId !== merchantId) {
       return reply.code(401).send({ error: 'Invalid or unauthorized API key.' });
     }
 
-    // Verify HMAC signature if provided
     if (signature) {
       const { prisma } = await import('../db/client.js');
       const merchant = await prisma.merchant.findUnique({

@@ -10,13 +10,8 @@ import {
 import { prisma } from '../db/client.js';
 import { API_PREFIX } from '../config/constants.js';
 
-// ---------------------------------------------------------------------------
-// Merchants REST API
-// ---------------------------------------------------------------------------
-
 export async function merchantRoutes(app: FastifyInstance): Promise<void> {
 
-  // POST /merchants — onboard a new merchant
   app.post(`${API_PREFIX}/merchants`, async (req, reply) => {
     try {
       const result = await createMerchant(req.body as Parameters<typeof createMerchant>[0]);
@@ -30,7 +25,6 @@ export async function merchantRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // GET /merchants/:id
   app.get(`${API_PREFIX}/merchants/:id`, async (req, reply) => {
     const { id } = req.params as { id: string };
     try {
@@ -41,7 +35,6 @@ export async function merchantRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // PUT /merchants/:id/config — update Mode A sync configuration
   app.put(`${API_PREFIX}/merchants/:id/config`, async (req, reply) => {
     const { id } = req.params as { id: string };
     try {
@@ -53,7 +46,6 @@ export async function merchantRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // PUT /merchants/:id/policy — update agent purchase policy
   app.put(`${API_PREFIX}/merchants/:id/policy`, async (req, reply) => {
     const { id } = req.params as { id: string };
     try {
@@ -65,7 +57,6 @@ export async function merchantRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // POST /merchants/:id/sync — trigger immediate one-shot sync
   app.post(`${API_PREFIX}/merchants/:id/sync`, async (req, reply) => {
     const { id } = req.params as { id: string };
     try {
@@ -77,7 +68,6 @@ export async function merchantRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // GET /merchants/:id/sync-logs — sync history and freshness
   app.get(`${API_PREFIX}/merchants/:id/sync-logs`, async (req, reply) => {
     const { id } = req.params as { id: string };
     const { limit = '20' } = req.query as { limit?: string };
@@ -109,7 +99,6 @@ export async function merchantRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // GET /merchants/:id/products — quick view of IR products for this merchant
   app.get(`${API_PREFIX}/merchants/:id/products`, async (req, reply) => {
     const { id } = req.params as { id: string };
     const products = await prisma.product.findMany({

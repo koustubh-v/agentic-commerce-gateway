@@ -4,13 +4,6 @@ import type { IROrder } from '../../types/ir.js';
 import type { Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
-// ---------------------------------------------------------------------------
-// Outbox Writer
-// Write intent BEFORE making any external call (PSP, merchant webhook).
-// A separate worker (outbox worker) reads these rows and makes actual calls.
-// This guarantees no intent is lost even if the process crashes.
-// ---------------------------------------------------------------------------
-
 export interface OutboxEntryData {
   paymentIntentId: string;
   actionType: 'CREATE_RAZORPAY_ORDER' | 'NOTIFY_MERCHANT' | 'NOTIFY_AGENT';
@@ -43,7 +36,6 @@ export async function writeOutboxEntry(
     },
   });
 
-  // Enqueue the processing job (slight delay to ensure DB commit propagates first)
   await addOutboxJob({ outboxId, correlationId }, { delay: 100 });
 
   return outboxId;
@@ -76,7 +68,7 @@ export async function notifyMerchantOfOrder(
         customerEmail: order.customerEmail,
         customerName: order.customerName,
         shippingAddress: order.shippingAddress,
-        items: [], // cart items populated by caller
+        items: [], 
       },
     },
   });

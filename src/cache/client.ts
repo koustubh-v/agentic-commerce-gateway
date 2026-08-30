@@ -4,22 +4,19 @@ import { env } from '../config/env.js';
 const redisOptions = {
   lazyConnect: true,
   retryStrategy: (times: number) => {
-    if (times > 10) return null; // Stop retrying
-    return Math.min(times * 100, 3000); // Exponential backoff
+    if (times > 10) return null; 
+    return Math.min(times * 100, 3000); 
   },
   ...(env.REDIS_PASSWORD ? { password: env.REDIS_PASSWORD } : {}),
 };
 
-// Primary client — for general use (reads/writes)
 export const redis = new Redis(env.REDIS_URL, redisOptions);
 
-// Subscriber client — BullMQ requires a separate client for subscriptions
 export const redisSub = new Redis(env.REDIS_URL, redisOptions);
 
-// Separate client for BullMQ worker (it needs its own connection)
 export const redisBullMQ = new Redis(env.REDIS_URL, {
   ...redisOptions,
-  maxRetriesPerRequest: null, // Required by BullMQ
+  maxRetriesPerRequest: null, 
 });
 
 redis.on('error', (err) => {
@@ -31,9 +28,9 @@ redis.on('connect', () => {
 });
 
 export async function connectRedis(): Promise<void> {
-  await redis.connect();
-  await redisSub.connect();
-  await redisBullMQ.connect();
+  try { if (redis.status !== 'ready' && redis.status !== 'connecting') await redis.connect(); } catch (e) {}
+  try { if (redisSub.status !== 'ready' && redisSub.status !== 'connecting') await redisSub.connect(); } catch (e) {}
+  try { if (redisBullMQ.status !== 'ready' && redisBullMQ.status !== 'connecting') await redisBullMQ.connect(); } catch (e) {}
 }
 
 export async function disconnectRedis(): Promise<void> {

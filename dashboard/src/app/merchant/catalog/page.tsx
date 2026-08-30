@@ -48,7 +48,7 @@ export default async function CatalogPage({
         </div>
       </div>
 
-      {/* Search */}
+      {}
       <div className={styles.formSection} style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
         <form method="GET" style={{ display: 'flex', gap: '0.75rem' }}>
           <input name="search" defaultValue={search} className={styles.formInput} placeholder="Search by title or category..." style={{ flex: 1 }} />
@@ -109,7 +109,7 @@ export default async function CatalogPage({
           })}
         </ul>
 
-        {/* Pagination */}
+        {}
         {totalPages > 1 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderTop: '1px solid var(--border-color)' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>

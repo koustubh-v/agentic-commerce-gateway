@@ -1,12 +1,6 @@
 import type { IRProduct, IRProductImage, IRProductVariant, AvailabilityStatus } from '../types/ir.js';
 import type { RawProduct } from './adapters/modeA/config-schema.js';
 
-// ---------------------------------------------------------------------------
-// Normalizer — converts ACG-prefixed intermediates to canonical IR
-// This is the type-coercion and sanitization boundary.
-// Stateless: (rawProducts, merchantId, currency) → IRProduct[]
-// ---------------------------------------------------------------------------
-
 /**
  * Parse a price value — accepts string or number, returns a clean float.
  * Strips currency symbols and commas.
@@ -84,7 +78,7 @@ function parseAvailability(
   if (['preorder', 'pre-order', 'preorderable', 'comingsoon'].includes(lower)) return 'PREORDER';
   if (['discontinued', 'archived', 'inactive'].includes(lower)) return 'DISCONTINUED';
 
-  return 'IN_STOCK'; // Safe default
+  return 'IN_STOCK'; 
 }
 
 /**
@@ -135,7 +129,7 @@ export function normalizeProducts(
   for (const raw of rawProducts) {
     const price = parsePrice(raw.__acg_price);
     if (price === undefined) {
-      // Cannot normalise a product with no price — skip with a warning
+      
       console.warn(`[Normalizer] Skipping product ${raw.__acg_id}: cannot parse price "${raw.__acg_price}"`);
       continue;
     }

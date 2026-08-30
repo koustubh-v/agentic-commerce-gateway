@@ -6,10 +6,6 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 
-// ---------------------------------------------------------------------------
-// Merchant Service
-// ---------------------------------------------------------------------------
-
 const CreateMerchantSchema = z.object({
   name: z.string().min(2).max(100),
   slug: z.string().min(2).max(60).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens'),
@@ -37,20 +33,17 @@ export type CreateMerchantInput = z.infer<typeof CreateMerchantSchema>;
  */
 export async function createMerchant(input: CreateMerchantInput): Promise<{
   merchant: Record<string, unknown>;
-  apiKey: string; // Raw key — shown ONCE, store securely
+  apiKey: string; 
 }> {
   const parsed = CreateMerchantSchema.parse(input);
 
-  // Check slug uniqueness
   const existing = await prisma.merchant.findUnique({ where: { slug: parsed.slug } });
   if (existing) throw new Error(`Merchant with slug "${parsed.slug}" already exists.`);
 
-  // Generate API key: ak_live_<uuid_hex>
   const rawKey = `ak_live_${uuidv4().replace(/-/g, '')}`;
   const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
   const keyPrefix = rawKey.substring(0, 16);
 
-  // Generate webhook signing secret
   const webhookSigningSecret = crypto.randomBytes(32).toString('hex');
 
   const merchant = await prisma.merchant.create({
@@ -83,7 +76,7 @@ export async function createMerchant(input: CreateMerchantInput): Promise<{
       apiKeyPrefix: merchant.apiKeyPrefix,
       createdAt: merchant.createdAt,
     },
-    apiKey: rawKey, // Shown ONCE — merchant must store this
+    apiKey: rawKey, 
   };
 }
 
@@ -170,13 +163,11 @@ export async function updateSyncConfig(
     },
   });
 
-  // Update merchant to ACTIVE if onboarding
   await prisma.merchant.update({
     where: { id: merchantId },
     data: { status: 'ACTIVE', integrationMode: 'MODE_A' },
   });
 
-  // Re-register sync job with new interval
   await registerMerchantSyncJob(merchantId);
 }
 
@@ -210,7 +201,6 @@ export async function validateApiKey(rawKey: string): Promise<string | null> {
 
   if (!merchant) return null;
 
-  // Timing-safe comparison
   const hashBuf = Buffer.from(hash);
   const storedBuf = Buffer.from(merchant.apiKeyHash);
 

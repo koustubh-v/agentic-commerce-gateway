@@ -2,11 +2,6 @@ import { Queue, type JobsOptions } from 'bullmq';
 import { redisBullMQ } from '../cache/client.js';
 import { QUEUES } from '../config/constants.js';
 
-// ---------------------------------------------------------------------------
-// BullMQ Queue definitions
-// ---------------------------------------------------------------------------
-
-// Products sync queue — processes Mode A polling jobs
 export const syncQueue = new Queue(QUEUES.SYNC_PRODUCTS, {
   connection: redisBullMQ,
   defaultJobOptions: {
@@ -17,7 +12,6 @@ export const syncQueue = new Queue(QUEUES.SYNC_PRODUCTS, {
   },
 });
 
-// Outbox queue — drains outbox table for PSP calls and webhook notifications
 export const outboxQueue = new Queue(QUEUES.OUTBOX, {
   connection: redisBullMQ,
   defaultJobOptions: {
@@ -28,7 +22,6 @@ export const outboxQueue = new Queue(QUEUES.OUTBOX, {
   },
 });
 
-// Webhook notification queue — fan-out notifications to agents and merchants
 export const webhookNotifyQueue = new Queue(QUEUES.WEBHOOK_NOTIFY, {
   connection: redisBullMQ,
   defaultJobOptions: {
@@ -39,7 +32,6 @@ export const webhookNotifyQueue = new Queue(QUEUES.WEBHOOK_NOTIFY, {
   },
 });
 
-// Reconciler queue — polling for UNCERTAIN transactions
 export const reconcilerQueue = new Queue(QUEUES.RECONCILER, {
   connection: redisBullMQ,
   defaultJobOptions: {
@@ -47,10 +39,6 @@ export const reconcilerQueue = new Queue(QUEUES.RECONCILER, {
     removeOnFail: { count: 100 },
   },
 });
-
-// ---------------------------------------------------------------------------
-// Job payload types
-// ---------------------------------------------------------------------------
 
 export interface SyncJobPayload {
   merchantId: string;
@@ -78,10 +66,6 @@ export interface ReconcilerJobPayload {
   paymentIntentId: string;
   correlationId: string;
 }
-
-// ---------------------------------------------------------------------------
-// Queue helpers
-// ---------------------------------------------------------------------------
 
 export async function addSyncJob(
   data: SyncJobPayload,

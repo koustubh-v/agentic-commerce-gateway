@@ -39,7 +39,7 @@ export default async function SettingsPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
-        {/* Merchant Info */}
+        {}
         <div className={styles.formSection} style={{ padding: '2rem' }}>
           <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1.5rem' }}>
             Merchant Info
@@ -61,7 +61,7 @@ export default async function SettingsPage() {
           ))}
         </div>
 
-        {/* Webhook Settings */}
+        {}
         <div className={styles.formSection} style={{ padding: '2rem' }}>
           <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1.5rem' }}>
             Webhook Endpoints

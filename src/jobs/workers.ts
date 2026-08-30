@@ -14,10 +14,6 @@ import { mapRazorpayError } from '../commerce/errors.js';
 import { releaseAllLocksForCheckout } from '../commerce/inventory-lock.js';
 import crypto from 'crypto';
 
-// ---------------------------------------------------------------------------
-// Sync Worker — processes Mode A product sync jobs
-// ---------------------------------------------------------------------------
-
 export const syncWorker = new Worker<SyncJobPayload>(
   QUEUES.SYNC_PRODUCTS,
   async (job) => {
@@ -25,7 +21,7 @@ export const syncWorker = new Worker<SyncJobPayload>(
     const startedAt = new Date();
 
     const syncRun = await prisma.syncRun.create({
-      data: { configId: 'temp', status: 'RUNNING' }, // We'll update configId when we load config
+      data: { configId: 'temp', status: 'RUNNING' }, 
     });
 
     let config;
@@ -45,7 +41,7 @@ export const syncWorker = new Worker<SyncJobPayload>(
         if (timeSinceFailure < 5 * 60 * 1000) {
           throw new Error('Circuit breaker is OPEN. Skipping sync.');
         } else {
-          // Half open - try once
+          
           await prisma.merchantSyncConfig.update({
             where: { id: config.id },
             data: { circuitState: 'HALF_OPEN' }
@@ -57,21 +53,19 @@ export const syncWorker = new Worker<SyncJobPayload>(
         throw new Error('No products endpoint configured for merchant.');
       }
 
-      // Build auth headers
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'User-Agent': 'AgentCommerceGateway/1.0',
       };
 
       if (config.authType === 'bearer' && config.authValueEncrypted) {
-        headers['Authorization'] = `Bearer ${config.authValueEncrypted}`; // decrypted in prod
+        headers['Authorization'] = `Bearer ${config.authValueEncrypted}`; 
       } else if (config.authType === 'api_key_header' && config.authHeaderName && config.authValueEncrypted) {
         headers[config.authHeaderName] = config.authValueEncrypted;
       } else if (config.authType === 'basic' && config.authValueEncrypted) {
         headers['Authorization'] = `Basic ${config.authValueEncrypted}`;
       }
 
-      // Fetch from merchant's API
       const response = await fetch(config.productsEndpoint, { headers });
 
       if (!response.ok) {
@@ -80,14 +74,11 @@ export const syncWorker = new Worker<SyncJobPayload>(
 
       const rawData: unknown = await response.json();
 
-      // Map using JSONPath field mapping
       const fieldMap = config.fieldMap as Parameters<typeof mapMerchantResponse>[1];
       const rawProducts = mapMerchantResponse(rawData, fieldMap, config.productsArrayPath ?? '$');
 
-      // Normalise to canonical IR
       const normalized = normalizeProducts(rawProducts, merchantId, config.merchant.currency);
 
-      // Write to IR store
       let recordsFetched = normalized.length;
       let recordsUpserted = 0;
       let recordsFailed = 0;
@@ -95,7 +86,7 @@ export const syncWorker = new Worker<SyncJobPayload>(
       for (const product of normalized) {
         try {
           const result = await upsertProductFromSync(merchantId, product);
-          if (result) recordsUpserted++; // Not skipped by hash check
+          if (result) recordsUpserted++; 
         } catch (err) {
           console.error(`[SyncWorker] Failed to upsert product ${product.externalId}:`, err);
           recordsFailed++;
@@ -151,11 +142,10 @@ export const syncWorker = new Worker<SyncJobPayload>(
         });
       }
 
-      // Mark products as stale so agents get the freshness warning
       await markProductsStale(merchantId, `Sync failed: ${errorMessage}`);
 
       if (config?.circuitState !== 'OPEN') {
-        throw err; // Re-throw so BullMQ retries unless circuit just opened
+        throw err; 
       }
     }
   },
@@ -173,10 +163,6 @@ syncWorker.on('failed', (job, err) => {
   console.error(`[SyncWorker] Job ${job?.id} failed:`, err.message);
 });
 
-// ---------------------------------------------------------------------------
-// Outbox Worker — drains outbox rows for PSP calls and notifications
-// ---------------------------------------------------------------------------
-
 export const outboxWorker = new Worker<OutboxJobPayload>(
   QUEUES.OUTBOX,
   async (job) => {
@@ -193,7 +179,6 @@ export const outboxWorker = new Worker<OutboxJobPayload>(
       return;
     }
 
-    // Mark as processing
     await prisma.outbox.update({
       where: { id: outboxId },
       data: { status: 'PROCESSING', attempts: { increment: 1 }, lastAttemptAt: new Date() },
@@ -312,10 +297,6 @@ export const outboxWorker = new Worker<OutboxJobPayload>(
     concurrency: env.BULLMQ_OUTBOX_CONCURRENCY,
   },
 );
-
-// ---------------------------------------------------------------------------
-// Webhook Notify Worker — fan-out signed webhooks to agents and merchants
-// ---------------------------------------------------------------------------
 
 export const webhookNotifyWorker = new Worker<WebhookNotifyPayload>(
   QUEUES.WEBHOOK_NOTIFY,

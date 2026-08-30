@@ -339,7 +339,6 @@ void main(){
 
   vec3 color = uColor;
 
-  // sRGB gamma correction - convert linear to sRGB for accurate color output
   vec3 srgbColor = mix(
     color * 12.92,
     1.055 * pow(color, vec3(1.0 / 2.4)) - 0.055,

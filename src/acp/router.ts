@@ -57,7 +57,7 @@ export async function acpRouter(fastify: FastifyInstance) {
 
   fastify.post('/checkout_sessions', { preHandler: authenticateAgent('checkout:write') }, async (request: FastifyRequest, reply: FastifyReply) => {
     const agentId = (request as any).agentId;
-    await rateLimitAgent(agentId, 50, 3600); // Identity-based rate limit
+    await rateLimitAgent(agentId, 50, 3600); 
     
     const body = request.body as {
       merchantId: string;

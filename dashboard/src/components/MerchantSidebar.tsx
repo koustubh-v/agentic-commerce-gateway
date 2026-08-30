@@ -29,7 +29,7 @@ export default function MerchantSidebar({ merchantName, email, role }: Props) {
 
   return (
     <aside className={styles.sidebar}>
-      {/* Logo */}
+      {}
       <div className={styles.sidebarLogo}>
         <div style={{
           width: '28px', height: '28px', borderRadius: '6px', flexShrink: 0,
@@ -43,7 +43,7 @@ export default function MerchantSidebar({ merchantName, email, role }: Props) {
         </div>
       </div>
 
-      {/* Nav */}
+      {}
       <nav className={styles.sidebarNav}>
         <div className={styles.navSectionLabel}>Merchant</div>
         {merchantNav.map((item) => {
@@ -70,7 +70,7 @@ export default function MerchantSidebar({ merchantName, email, role }: Props) {
         )}
       </nav>
 
-      {/* Footer */}
+      {}
       <div className={styles.sidebarFooter}>
         <div style={{ marginBottom: '0.75rem' }}>
           <div style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '0.15rem' }}>

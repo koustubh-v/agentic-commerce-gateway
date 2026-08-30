@@ -1,10 +1,6 @@
-// =============================================================================
-// Canonical Intermediate Representation (IR) — TypeScript types
-// These mirror the Prisma models but are the agent-facing view.
-// Every IR type is serializable (no Prisma Decimal — converted to number).
-// =============================================================================
 
-export type Currency = string; // ISO 4217: "INR", "USD", etc.
+
+export type Currency = string; 
 
 export type AvailabilityStatus = 'IN_STOCK' | 'OUT_OF_STOCK' | 'PREORDER' | 'DISCONTINUED';
 export type ProductStatus = 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
@@ -64,14 +60,14 @@ export interface IRInventory {
   availability: AvailabilityStatus;
   trackQuantity: boolean;
   lowStockThreshold?: number | undefined;
-  lastSyncedAt?: string | undefined; // ISO 8601
+  lastSyncedAt?: string | undefined; 
 }
 
 export interface IRProductVariant {
   id: string;
   externalId: string;
   title: string;
-  price?: number | undefined; // null = inherit from parent
+  price?: number | undefined; 
   compareAtPrice?: number | undefined;
   attributes: Record<string, string>;
   sku?: string | undefined;
@@ -98,7 +94,7 @@ export interface IRProduct {
   availability: AvailabilityStatus;
   agentPurchasable: boolean;
   variants: IRProductVariant[];
-  // Freshness metadata — agents should surface this to users when stale
+  
   lastSyncedAt?: string | undefined;
   isStale: boolean;
   staleReason?: string | undefined;
@@ -127,7 +123,7 @@ export interface IRCart {
   total: number;
   currency: Currency;
   coupons: unknown[];
-  version: number; // optimistic concurrency version
+  version: number; 
   expiresAt?: string | undefined;
   createdAt: string;
   updatedAt: string;
@@ -182,17 +178,13 @@ export interface IRPaymentIntent {
   gateMessage?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Filter / query types (used by IR service layer)
-// ---------------------------------------------------------------------------
-
 export interface ProductFilters {
   category?: string;
   availability?: AvailabilityStatus;
   minPrice?: number;
   maxPrice?: number;
   agentPurchasable?: boolean;
-  search?: string; // simple text match on title/description
+  search?: string; 
   limit?: number;
   offset?: number;
 }
@@ -208,17 +200,13 @@ export interface CartMutationPayload {
 }
 
 export interface CartUpdatePayload {
-  version: number; // Must match current version — optimistic concurrency
+  version: number; 
   items: Array<{
     productId: string;
     variantId?: string;
     quantity: number;
   }>;
 }
-
-// ---------------------------------------------------------------------------
-// Freshness wrapper — every agent-facing response includes this
-// ---------------------------------------------------------------------------
 
 export interface FreshnessMetadata {
   lastSyncedAt?: string | undefined;

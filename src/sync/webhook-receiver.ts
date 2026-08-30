@@ -6,15 +6,9 @@ import { incrementStock } from '../ir/inventory.js';
 import type { IROrder } from '../types/ir.js';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// Inbound Merchant Webhook Receiver
-//
-// Merchants push order updates (cancellations, fulfillment, refunds) to:
 //   POST /webhooks/merchant/:merchantId
-//
-// This is the INBOUND direction of bidirectionality:
+
 //   Merchant → ACG → IR (order status updated) → Agent (callback/poll)
-// ---------------------------------------------------------------------------
 
 const MerchantWebhookPayloadSchema = z.object({
   event: z.enum([
@@ -71,7 +65,6 @@ export async function processMerchantWebhook(
 
   const { event, externalOrderId, data } = parsed.data;
 
-  // Find the ACG order by external ID
   const order = await prisma.order.findFirst({
     where: { merchantId, externalOrderId },
     include: { paymentIntents: { orderBy: { createdAt: 'desc' }, take: 1 } },
@@ -86,7 +79,6 @@ export async function processMerchantWebhook(
 
   const paymentIntent = order.paymentIntents[0];
 
-  // Map merchant event to ACG order status
   const statusMap: Record<string, IROrder['status']> = {
     'order.cancelled': 'CANCELLED',
     'order.fulfilled': 'DELIVERED',
@@ -104,7 +96,6 @@ export async function processMerchantWebhook(
   const newStatus = statusMap[event] ?? 'PROCESSING';
   const newFulfillmentStatus = fulfillmentMap[event];
 
-  // Update order in IR store
   const updatedOrder = await updateOrderStatus(order.id, newStatus, {
     ...(newFulfillmentStatus ? { fulfillmentStatus: newFulfillmentStatus } : {}),
     ...(data.trackingNumber ? { trackingNumber: data.trackingNumber } : {}),
@@ -113,7 +104,6 @@ export async function processMerchantWebhook(
     ...(data.cancellationReason ? { internalNotes: data.cancellationReason } : {}),
   });
 
-  // Append audit event
   if (paymentIntent) {
     await appendTransactionEvent({
       paymentIntentId: paymentIntent.id,
@@ -125,7 +115,6 @@ export async function processMerchantWebhook(
     });
   }
 
-  // Release stock if order was cancelled or refunded
   if (event === 'order.cancelled' || event === 'order.refunded') {
     const cartItems = await prisma.cartItem.findMany({ where: { cartId: order.cartId } });
     for (const item of cartItems) {
@@ -135,7 +124,6 @@ export async function processMerchantWebhook(
     }
   }
 
-  // Fan out to agent callback URL if registered
   if (order.agentCallbackUrl) {
     const merchant = await prisma.merchant.findUniqueOrThrow({
       where: { id: merchantId },
@@ -159,7 +147,6 @@ export async function processMerchantWebhook(
     }
   }
 
-  // Append STATUS_PROPAGATED event if we notified agent
   if (order.agentCallbackUrl && paymentIntent) {
     await appendTransactionEvent({
       paymentIntentId: paymentIntent.id,

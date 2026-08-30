@@ -1,10 +1,5 @@
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// Mode A — Merchant sync config manifest schema
-// This is what a merchant submits to configure config-mapping integration.
-// ---------------------------------------------------------------------------
-
 const AuthTypeSchema = z.enum(['bearer', 'api_key_header', 'basic', 'none']).default('none');
 
 export const MerchantSyncConfigSchema = z.object({
@@ -37,20 +32,20 @@ export const MerchantSyncConfigSchema = z.object({
    * Nested: "$.variants[*].id", "$.images[0].src"
    */
   fieldMap: z.object({
-    id: z.string(),                          // required: unique product identifier
-    title: z.string(),                       // required: product title/name
-    price: z.string(),                       // required: base price
+    id: z.string(),                          
+    title: z.string(),                       
+    price: z.string(),                       
     description: z.string().optional(),
     category: z.string().optional(),
     currency: z.string().optional(),
     stock: z.string().optional(),
-    images: z.string().optional(),           // JSONPath to image array or single URL
+    images: z.string().optional(),           
     compareAtPrice: z.string().optional(),
     brand: z.string().optional(),
     sku: z.string().optional(),
     tags: z.string().optional(),
-    availability: z.string().optional(),     // JSONPath → merchant's availability field
-    // Variant mapping — if merchant has a variants array
+    availability: z.string().optional(),     
+    
     'variants.id': z.string().optional(),
     'variants.title': z.string().optional(),
     'variants.price': z.string().optional(),
@@ -68,8 +63,8 @@ export const MerchantSyncConfigSchema = z.object({
 
   /** Auth for the merchant's API */
   authType: AuthTypeSchema,
-  authHeaderName: z.string().optional(),    // e.g. "Authorization", "X-API-Key"
-  authValue: z.string().optional(),         // Raw value (will be encrypted at storage)
+  authHeaderName: z.string().optional(),    
+  authValue: z.string().optional(),         
 
   /** Polling config */
   pollIntervalMinutes: z.number().int().min(1).max(1440).default(5),
@@ -81,14 +76,9 @@ export const MerchantSyncConfigSchema = z.object({
 
 export type MerchantSyncConfigInput = z.infer<typeof MerchantSyncConfigSchema>;
 
-// ---------------------------------------------------------------------------
-// Raw product data schema — what we accept from merchant APIs (very lenient)
-// The normalizer is responsible for coercing this into canonical IR.
-// ---------------------------------------------------------------------------
-
 export const RawProductSchema = z.object({
-  __acg_id: z.string(),            // mapped from fieldMap.id
-  __acg_title: z.string(),         // mapped from fieldMap.title
+  __acg_id: z.string(),            
+  __acg_title: z.string(),         
   __acg_price: z.union([z.string(), z.number()]),
   __acg_description: z.string().optional(),
   __acg_category: z.string().optional(),
@@ -101,7 +91,7 @@ export const RawProductSchema = z.object({
   __acg_tags: z.union([z.string(), z.array(z.string())]).optional(),
   __acg_availability: z.string().optional(),
   __acg_variants: z.array(z.record(z.unknown())).optional(),
-  __acg_raw: z.record(z.unknown()).optional(), // original raw object for debugging
+  __acg_raw: z.record(z.unknown()).optional(), 
 });
 
 export type RawProduct = z.infer<typeof RawProductSchema>;

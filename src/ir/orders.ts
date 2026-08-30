@@ -3,10 +3,6 @@ import { getCachedOrder, setCachedOrder, invalidateOrderCache } from '../cache/i
 import type { IROrder } from '../types/ir.js';
 import { Prisma } from '@prisma/client';
 
-// ---------------------------------------------------------------------------
-// Type helpers
-// ---------------------------------------------------------------------------
-
 type OrderWithCart = Prisma.OrderGetPayload<{
   include: { cart: { include: { items: true } } };
 }>;
@@ -36,10 +32,6 @@ function toIROrder(order: OrderWithCart): IROrder {
     updatedAt: order.updatedAt.toISOString(),
   };
 }
-
-// ---------------------------------------------------------------------------
-// IR Orders Service
-// ---------------------------------------------------------------------------
 
 /**
  * Get an order by ID — Redis first, Postgres fallback.
@@ -139,7 +131,6 @@ export async function createOrderFromCart(
       include: { cart: { include: { items: true } } },
     });
 
-    // Mark the cart as checked out
     await tx.cart.update({
       where: { id: cartId },
       data: { status: 'CHECKED_OUT' },

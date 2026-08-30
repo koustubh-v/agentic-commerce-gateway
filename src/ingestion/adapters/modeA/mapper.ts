@@ -1,12 +1,6 @@
 import { JSONPath } from 'jsonpath-plus';
 import type { MerchantSyncConfigInput, RawProduct } from './config-schema.js';
 
-// ---------------------------------------------------------------------------
-// JSONPath Field Mapper
-// Transforms a raw merchant API response into ACG-prefixed intermediate objects
-// using the merchant's fieldMap configuration.
-// ---------------------------------------------------------------------------
-
 type FieldMap = MerchantSyncConfigInput['fieldMap'];
 
 /**
@@ -74,8 +68,7 @@ function mapVariants(
   const variantIds = extractArray(rawProduct, fieldMap['variants.id']);
   if (variantIds.length === 0) return undefined;
 
-  // If variants are in a nested array, extract full variant objects
-  const variantsPath = fieldMap['variants.id'].split('[')[0] ?? '$.variants'; // strip the field part
+  const variantsPath = fieldMap['variants.id'].split('[')[0] ?? '$.variants'; 
   const rawVariants = extractArray(rawProduct, variantsPath) as Array<Record<string, unknown>>;
 
   return rawVariants.map((rv) => ({
@@ -106,7 +99,7 @@ export function mapMerchantResponse(
   let products: unknown[];
 
   if (productsArrayPath === '$') {
-    // Root is the array
+    
     products = Array.isArray(responseData) ? responseData : [responseData];
   } else {
     products = extractArray(responseData, productsArrayPath);
@@ -119,7 +112,6 @@ export function mapMerchantResponse(
     const rawObj = raw as Record<string, unknown>;
     const product = mapSingleProduct(rawObj, fieldMap);
 
-    // Skip products with no ID or title (basic sanity check before normalizer)
     if (!product.__acg_id || !product.__acg_title) continue;
 
     mapped.push(product);

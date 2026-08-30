@@ -13,6 +13,8 @@
     "db:migrate:prod": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx src/db/seed.ts",
+    "demo:ingest": "tsx scripts/demo/demo-ingest.ts",
+    "demo:agent": "tsx scripts/demo/demo-agent.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --passWithNoTests",

@@ -3,10 +3,6 @@ import { CACHE_KEYS } from '../config/constants.js';
 import { env } from '../config/env.js';
 import type { IRProduct, IRCart, IROrder } from '../types/ir.js';
 
-// ---------------------------------------------------------------------------
-// Generic helpers
-// ---------------------------------------------------------------------------
-
 async function getJSON<T>(key: string): Promise<T | null> {
   const raw = await redis.get(key);
   if (!raw) return null;
@@ -32,10 +28,6 @@ async function deletePrefixed(prefix: string): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Product cache
-// ---------------------------------------------------------------------------
-
 export async function getCachedProducts(merchantId: string): Promise<IRProduct[] | null> {
   return getJSON<IRProduct[]>(CACHE_KEYS.products(merchantId));
 }
@@ -53,14 +45,10 @@ export async function setCachedProduct(merchantId: string, productId: string, pr
 }
 
 export async function invalidateProductCache(merchantId: string): Promise<void> {
-  // Invalidate both the list and all individual product entries for this merchant
+  
   await deletePrefixed(`ir:product:${merchantId}:`);
   await deleteKey(CACHE_KEYS.products(merchantId));
 }
-
-// ---------------------------------------------------------------------------
-// Cart cache
-// ---------------------------------------------------------------------------
 
 export async function getCachedCart(cartId: string): Promise<IRCart | null> {
   return getJSON<IRCart>(CACHE_KEYS.cart(cartId));
@@ -73,10 +61,6 @@ export async function setCachedCart(cartId: string, cart: IRCart): Promise<void>
 export async function invalidateCartCache(cartId: string): Promise<void> {
   await deleteKey(CACHE_KEYS.cart(cartId));
 }
-
-// ---------------------------------------------------------------------------
-// Order cache
-// ---------------------------------------------------------------------------
 
 export async function getCachedOrder(orderId: string): Promise<IROrder | null> {
   return getJSON<IROrder>(CACHE_KEYS.order(orderId));

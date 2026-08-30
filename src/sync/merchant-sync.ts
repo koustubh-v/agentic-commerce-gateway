@@ -4,10 +4,6 @@ import { appendTransactionEvent } from '../payments/event-log.js';
 import { addWebhookNotifyJob, addSyncJob } from '../jobs/queues.js';
 import type { IROrder } from '../types/ir.js';
 
-// ---------------------------------------------------------------------------
-// Bidirectional Merchant Sync — triggered from sync jobs and webhook receivers
-// ---------------------------------------------------------------------------
-
 export interface MerchantSyncResult {
   merchantId: string;
   syncLogId: string;
@@ -76,10 +72,8 @@ export async function pushOrderStatusToMerchant(
 
   const merchant = order.merchant;
 
-  // Update IR first
   await updateOrderStatus(orderId, newStatus);
 
-  // Notify merchant via their fulfillment webhook
   if (merchant.fulfillmentWebhookUrl && merchant.webhookSigningSecret) {
     await addWebhookNotifyJob({
       targetUrl: merchant.fulfillmentWebhookUrl,
@@ -95,7 +89,6 @@ export async function pushOrderStatusToMerchant(
     });
   }
 
-  // Append event
   const paymentIntent = order.paymentIntents[0];
   if (paymentIntent) {
     await appendTransactionEvent({

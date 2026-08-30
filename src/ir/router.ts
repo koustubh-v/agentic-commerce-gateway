@@ -5,15 +5,8 @@ import { getOrder, getOrderEventLog } from '../ir/orders.js';
 import { API_PREFIX } from '../config/constants.js';
 import type { ProductFilters } from '../types/ir.js';
 
-// ---------------------------------------------------------------------------
-// IR Read API — agent-facing read-only endpoints
-// These expose the canonical IR to agents (and for debugging).
-// In Phase 2, these will be wrapped by MCP tools.
-// ---------------------------------------------------------------------------
-
 export async function irRoutes(app: FastifyInstance): Promise<void> {
 
-  // GET /ir/products/:merchantId — list products
   app.get(`${API_PREFIX}/ir/products/:merchantId`, async (req, reply) => {
     const { merchantId } = req.params as { merchantId: string };
     const query = req.query as {
@@ -42,7 +35,6 @@ export async function irRoutes(app: FastifyInstance): Promise<void> {
     return reply.send(result);
   });
 
-  // GET /ir/products/:merchantId/:productId — single product
   app.get(`${API_PREFIX}/ir/products/:merchantId/:productId`, async (req, reply) => {
     const { merchantId, productId } = req.params as { merchantId: string; productId: string };
     const result = await getProduct(merchantId, productId);
@@ -50,7 +42,6 @@ export async function irRoutes(app: FastifyInstance): Promise<void> {
     return reply.send(result);
   });
 
-  // GET /ir/carts/:cartId
   app.get(`${API_PREFIX}/ir/carts/:cartId`, async (req, reply) => {
     const { cartId } = req.params as { cartId: string };
     const cart = await getCart(cartId);
@@ -58,7 +49,6 @@ export async function irRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ data: cart });
   });
 
-  // GET /ir/orders/:orderId
   app.get(`${API_PREFIX}/ir/orders/:orderId`, async (req, reply) => {
     const { orderId } = req.params as { orderId: string };
     const order = await getOrder(orderId);
@@ -66,7 +56,6 @@ export async function irRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ data: order });
   });
 
-  // GET /ir/orders/:orderId/events — full audit event log
   app.get(`${API_PREFIX}/ir/orders/:orderId/events`, async (req, reply) => {
     const { orderId } = req.params as { orderId: string };
     const events = await getOrderEventLog(orderId);

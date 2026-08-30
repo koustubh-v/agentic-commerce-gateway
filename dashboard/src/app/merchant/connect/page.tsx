@@ -10,7 +10,6 @@ export default function ConnectPage() {
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
 
-  // Form state
   const [productsEndpoint, setProductsEndpoint] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [webhookUrl, setWebhookUrl] = useState('');

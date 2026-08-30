@@ -1,8 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { env } from '../config/env.js';
 
-// Singleton Prisma client
-// In development, prevent multiple instances due to hot-reload
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 export const prisma =

@@ -5,10 +5,6 @@ import type { IRCart, IRCartItem, CartMutationPayload, CartUpdatePayload } from 
 import type { Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
-// ---------------------------------------------------------------------------
-// Type helpers
-// ---------------------------------------------------------------------------
-
 type CartWithRelations = Prisma.CartGetPayload<{
   include: {
     items: {
@@ -50,10 +46,6 @@ function toIRCart(cart: CartWithRelations): IRCart {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Totals computation — always server-side, never trust client numbers
-// ---------------------------------------------------------------------------
-
 async function recomputeTotals(
   cartId: string,
   tx: Prisma.TransactionClient,
@@ -61,7 +53,6 @@ async function recomputeTotals(
   const items = await tx.cartItem.findMany({ where: { cartId } });
   const subtotal = items.reduce((sum, i) => sum + Number(i.lineTotal), 0);
 
-  // Tax placeholder — merchant tax mode will be applied in a follow-on phase
   const tax = 0;
   const total = subtotal + tax;
 
@@ -72,10 +63,6 @@ async function recomputeTotals(
 
   return { subtotal, tax, total };
 }
-
-// ---------------------------------------------------------------------------
-// IR Cart Service
-// ---------------------------------------------------------------------------
 
 /**
  * Get a cart by ID — Redis first, Postgres fallback.
@@ -106,18 +93,17 @@ export async function createCart(
   const cartId = uuidv4();
 
   const cart = await prisma.$transaction(async (tx) => {
-    // Create the cart
+    
     await tx.cart.create({
       data: {
         id: cartId,
         merchantId,
         agentSessionId: payload.agentSessionId ?? null,
-        currency: 'INR', // Will be set from merchant config
-        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 min TTL
+        currency: 'INR', 
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000), 
       },
     });
 
-    // Add items
     for (const item of payload.items) {
       const product = await tx.product.findFirstOrThrow({
         where: { id: item.productId, merchantId, status: 'ACTIVE' },
@@ -144,7 +130,6 @@ export async function createCart(
         },
       });
 
-      // Reserve stock if variant has inventory
       if (item.variantId) {
         await reserveStock(item.variantId, item.quantity);
       }
@@ -174,7 +159,7 @@ export async function updateCart(
   payload: CartUpdatePayload,
 ): Promise<IRCart> {
   const cart = await prisma.$transaction(async (tx) => {
-    // Optimistic concurrency check
+    
     const existing = await tx.cart.findUniqueOrThrow({ where: { id: cartId } });
 
     if (existing.version !== payload.version) {
@@ -188,7 +173,6 @@ export async function updateCart(
       throw new Error('Cart does not belong to this merchant.');
     }
 
-    // Release all existing stock reservations
     const existingItems = await tx.cartItem.findMany({ where: { cartId } });
     for (const item of existingItems) {
       if (item.variantId) {
@@ -196,10 +180,8 @@ export async function updateCart(
       }
     }
 
-    // Remove old items
     await tx.cartItem.deleteMany({ where: { cartId } });
 
-    // Add new items
     for (const item of payload.items) {
       const product = await tx.product.findFirstOrThrow({
         where: { id: item.productId, merchantId, status: 'ACTIVE' },
@@ -264,10 +246,6 @@ export async function expireCart(cartId: string): Promise<void> {
 
   await invalidateCartCache(cartId);
 }
-
-// ---------------------------------------------------------------------------
-// Custom errors
-// ---------------------------------------------------------------------------
 
 export class CartConflictError extends Error {
   constructor(message: string, public readonly currentVersion: number) {

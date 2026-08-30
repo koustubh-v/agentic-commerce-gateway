@@ -12,7 +12,6 @@ export default async function MerchantDashboard() {
 
   const merchantId = session.user.merchantId!;
 
-  // Fetch real metrics
   const [productCount, txCount, agentCount, revenueAgg] = await Promise.all([
     prisma.product.count({ where: { merchantId } }),
     prisma.transactionEvent.count({ where: { paymentIntent: { merchantId } } }),
@@ -23,7 +22,7 @@ export default async function MerchantDashboard() {
     })
   ]);
 
-  const totalRevenue = Number(revenueAgg._sum.amount || 0) / 100; // Assuming amount is in paisa/cents
+  const totalRevenue = Number(revenueAgg._sum.amount || 0) / 100; 
 
   return (
     <div className={styles.page}>

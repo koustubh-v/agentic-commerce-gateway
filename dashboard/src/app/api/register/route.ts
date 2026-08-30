@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       merchantId: result.merchant.id,
-      apiKey: rawApiKey, // Show once only
+      apiKey: rawApiKey, 
     });
   } catch (err: any) {
     console.error('Register error:', err);

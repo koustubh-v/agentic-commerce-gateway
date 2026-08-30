@@ -15,7 +15,6 @@ export function authenticateAgent(requiredScope: string) {
         return reply.status(403).send({ error: 'insufficient_scope' });
       }
 
-      // Attach agentId to request for downstream handlers
       (request as any).agentId = user.sub;
     } catch (err) {
       return reply.status(401).send({ error: 'invalid_or_expired_token' });

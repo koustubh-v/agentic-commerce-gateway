@@ -44,7 +44,7 @@ export default async function AllMerchantsPage({
         <Link href="/admin/merchants/new" className={styles.btnPrimary}>+ Add Merchant</Link>
       </div>
 
-      {/* Search */}
+      {}
       <div className={styles.formSection} style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
         <form method="GET" style={{ display: 'flex', gap: '0.75rem' }}>
           <input name="search" defaultValue={search} className={styles.formInput} placeholder="Search by name, email, or slug..." style={{ flex: 1 }} />

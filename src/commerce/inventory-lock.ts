@@ -1,6 +1,6 @@
 import { redis } from '../cache/client.js';
 
-const LOCK_TTL_SECONDS = 1800; // 30 minutes
+const LOCK_TTL_SECONDS = 1800; 
 const LOCK_PREFIX = 'lock:sku:';
 
 export async function acquireInventoryLock(

@@ -22,12 +22,8 @@ export async function buildServer() {
     },
   });
 
-  // ---------------------------------------------------------------------------
-  // Security plugins
-  // ---------------------------------------------------------------------------
-
   await app.register(helmet, {
-    contentSecurityPolicy: false, // API server, no HTML
+    contentSecurityPolicy: false, 
   });
 
   await app.register(cors, {
@@ -48,36 +44,22 @@ export async function buildServer() {
     secret: env.JWT_SECRET,
   });
 
-  // ---------------------------------------------------------------------------
-  // Health check
-  // ---------------------------------------------------------------------------
-
   app.get('/health', async () => ({
     status: 'ok',
     service: 'agent-commerce-gateway',
     version: '0.1.0',
     timestamp: new Date().toISOString(),
   }));
-  
-  // ---------------------------------------------------------------------------
-  // Route modules
-  // ---------------------------------------------------------------------------
 
   await app.register(merchantRoutes);
   await app.register(irRoutes);
   await app.register(razorpayWebhookRoutes);
   await app.register(merchantWebhookRoutes);
-  
-  // New ACP and Discovery endpoints
+
   await app.register(acpRouter, { prefix: '/acp' });
   await app.register(discoveryRouter);
-  
-  // Register MCP Server endpoints (/mcp/sse and /mcp/message)
-  registerMcpServer(app);
 
-  // ---------------------------------------------------------------------------
-  // Global error handler
-  // ---------------------------------------------------------------------------
+  registerMcpServer(app);
 
   app.setErrorHandler((error, _req, reply) => {
     app.log.error(error);

@@ -1,12 +1,6 @@
 import { prisma } from '../db/client.js';
 import type { IRInventory } from '../types/ir.js';
 
-// ---------------------------------------------------------------------------
-// IR Inventory Service
-// Inventory is always read live from Postgres (TTL is short; Redis cache is
-// managed at the product level). Writes are atomic SQL to prevent race conditions.
-// ---------------------------------------------------------------------------
-
 /**
  * Get live inventory for a variant.
  */
@@ -41,7 +35,7 @@ export async function decrementStock(variantId: string, quantity: number = 1): P
     RETURNING stock
   `;
 
-  if (result.length === 0) return null; // Out of stock or not found
+  if (result.length === 0) return null; 
   return result[0]?.stock ?? null;
 }
 

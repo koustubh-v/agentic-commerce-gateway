@@ -15,16 +15,14 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Sign In state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // Sign Up state
   const [name, setName] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
-  const [apiKey, setApiKey] = useState(''); // shown once after register
+  const [apiKey, setApiKey] = useState(''); 
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
@@ -70,10 +68,8 @@ function LoginForm() {
       return;
     }
 
-    // Show the API key, then auto sign in
     setApiKey(data.apiKey);
 
-    // Auto sign in after 2s
     setTimeout(async () => {
       await signIn('credentials', {
         email: signupEmail,
@@ -94,7 +90,7 @@ function LoginForm() {
       background: '#f9fafb',
     }}>
       <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: '440px', padding: '1.5rem' }}>
-        {/* Logo */}
+        {}
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2.5rem', justifyContent: 'center', textDecoration: 'none' }}>
           <div style={{
             width: '32px', height: '32px', borderRadius: '8px',
@@ -105,7 +101,7 @@ function LoginForm() {
           <span style={{ fontWeight: 600, fontSize: '1.1rem', color: '#171717' }}>Agent Commerce</span>
         </Link>
 
-        {/* Card */}
+        {}
         <div style={{
           background: '#ffffff',
           border: '1px solid #e5e7eb',
@@ -113,7 +109,7 @@ function LoginForm() {
           padding: '2rem',
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
         }}>
-          {/* API key success message */}
+          {}
           {apiKey && (
             <div style={{
               background: '#ecfdf5',
@@ -134,7 +130,7 @@ function LoginForm() {
             </div>
           )}
 
-          {/* Tabs */}
+          {}
           <div style={{
             display: 'flex', background: '#f4f4f5',
             borderRadius: '9999px', padding: '4px', marginBottom: '2rem',

@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   if (!productsEndpoint) return NextResponse.json({ error: 'Products endpoint is required' }, { status: 400 });
 
   await prisma.$transaction(async (tx) => {
-    // Upsert sync config
+    
     await tx.merchantSyncConfig.upsert({
       where: { merchantId },
       create: {
@@ -36,7 +36,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Update merchant status and currency
     await tx.merchant.update({
       where: { id: merchantId },
       data: {

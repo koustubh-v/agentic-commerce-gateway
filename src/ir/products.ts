@@ -19,10 +19,6 @@ import type {
 import type { Prisma } from '@prisma/client';
 import { env } from '../config/env.js';
 
-// ---------------------------------------------------------------------------
-// Type helpers
-// ---------------------------------------------------------------------------
-
 type ProductWithRelations = Prisma.ProductGetPayload<{
   include: {
     variants: { include: { inventory: true } };
@@ -100,10 +96,6 @@ function buildFreshness(products: IRProduct[]): FreshnessMetadata {
   };
 }
 
-// ---------------------------------------------------------------------------
-// IR Products Service
-// ---------------------------------------------------------------------------
-
 /**
  * List products for a merchant — read from Redis cache, fall back to Postgres.
  * Agents always call this, never query the merchant DB directly.
@@ -112,7 +104,7 @@ export async function getProducts(
   merchantId: string,
   filters: ProductFilters = {},
 ): Promise<IRResponse<IRProduct[]>> {
-  // Try cache first for non-filtered requests
+  
   const isUnfiltered = !filters.category && !filters.availability && !filters.search && !filters.minPrice && !filters.maxPrice;
   if (isUnfiltered && !filters.agentPurchasable) {
     const cached = await getCachedProducts(merchantId);
@@ -121,7 +113,6 @@ export async function getProducts(
     }
   }
 
-  // Build Prisma where clause from filters
   const where: Prisma.ProductWhereInput = {
     merchantId,
     status: 'ACTIVE',
@@ -156,7 +147,6 @@ export async function getProducts(
 
   const irProducts = products.map(toIRProduct);
 
-  // Cache unfiltered list only (filtered results are per-query)
   if (isUnfiltered) {
     await setCachedProducts(merchantId, irProducts);
   }
@@ -218,19 +208,18 @@ export async function upsertProductFromSync(
 ): Promise<IRProduct | null> {
   const contentHash = crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
 
-  // Skip update if hash matches
   const existing = await prisma.product.findUnique({
     where: { merchantId_externalId: { merchantId, externalId: data.externalId } },
     select: { id: true, contentHash: true }
   });
 
   if (existing?.contentHash === contentHash) {
-    // Only bump lastSyncedAt
+    
     await prisma.product.update({
       where: { id: existing.id },
       data: { lastSyncedAt: new Date(), isStale: false, staleReason: null }
     });
-    return null; // Return null to indicate no deep update happened
+    return null; 
   }
 
   const product = await prisma.$transaction(async (tx) => {
@@ -277,7 +266,6 @@ export async function upsertProductFromSync(
       },
     });
 
-    // Upsert variants + inventory
     if (data.variants) {
       for (const variant of data.variants) {
         const upsertedVariant = await tx.productVariant.upsert({

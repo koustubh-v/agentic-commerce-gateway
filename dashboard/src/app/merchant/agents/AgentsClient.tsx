@@ -50,7 +50,7 @@ export default function AgentsClient({ clients: initialClients }: { clients: Age
 
   return (
     <div>
-      {/* Create new client */}
+      {}
       <div className={styles.formSection} style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
         <div style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '0.9rem' }}>Create New Agent Client</div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -63,7 +63,7 @@ export default function AgentsClient({ clients: initialClients }: { clients: Age
         </div>
       </div>
 
-      {/* Show secret once */}
+      {}
       {newClient && (
         <div style={{
           padding: '1.25rem', borderRadius: '12px', marginBottom: '1.5rem',
@@ -92,7 +92,7 @@ export default function AgentsClient({ clients: initialClients }: { clients: Age
         </div>
       )}
 
-      {/* Table */}
+      {}
       <div className={styles.activityCard}>
         <div className={styles.activityCardHeader}>Agent Clients</div>
         <ul className={styles.activityList}>

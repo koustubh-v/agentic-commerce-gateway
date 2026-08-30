@@ -33,6 +33,21 @@ function CheckIcon() {
 }
 
 export default function LandingPage() {
+  const faqs = [
+    {
+      question: "Why do I need to add my Razorpay keys to ACG?",
+      answer: "In production, ACG uses a Bring Your Own Key (BYOK) architecture or Razorpay Route. By using your exact credentials, the gateway provisions orders natively on your account, ensuring funds go directly to you without ACG holding the money."
+    },
+    {
+      question: "If ACG processes the agent's payment, how does my website know the order was paid?",
+      answer: "ACG uses bidirectional webhooks. When an agent successfully completes a payment, ACG verifies the transaction and fires a secure fulfillment webhook directly to your underlying store's API (e.g., Shopify or custom backend)."
+    },
+    {
+      question: "What if my website strictly requires native Razorpay webhooks to fulfill orders?",
+      answer: "Because ACG provisions the order using your actual Razorpay credentials, the transaction lives in your Razorpay dashboard. Razorpay will fire its standard webhooks directly to your website just as if a human had paid on your checkout page."
+    }
+  ];
+
   return (
     <main className={styles.page}>
       <LandingEffects />
@@ -133,7 +148,7 @@ export default function LandingPage() {
           <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '24px', padding: '2.5rem', boxShadow: '0 20px 40px rgba(0,0,0,0.04)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f4f4f5', paddingBottom: '1.5rem', marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{ width: '48px', height: '48px', background: '#f4f4f5', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', color: '#171717' }}>⌘</div>
+                <div style={{ width: '48px', height: '48px', background: '#f4f4f5', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', color: '#171717' }}></div>
                 <div>
                   <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#a3a3a3', letterSpacing: '0.05em' }}>ACTIVE POLICY</div>
                   <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#171717' }}>Autonomous purchasing</div>
@@ -182,6 +197,24 @@ export default function LandingPage() {
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#171717', marginBottom: '1rem' }}>{title}</h3>
                 <p style={{ fontSize: '1rem', color: '#525252', lineHeight: 1.6, margin: 0 }}>{copy}</p>
               </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" style={{ padding: '8rem 4rem', background: '#f9fafb', borderTop: '1px solid #e5e7eb' }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
+            <p style={{ fontSize: '0.85rem', fontWeight: 600, color: '#525252', letterSpacing: '0.05em', marginBottom: '1rem', textTransform: 'uppercase' }}>COMMON QUESTIONS</p>
+            <h2 style={{ fontSize: '3rem', fontWeight: 600, color: '#171717', lineHeight: 1.1, letterSpacing: '-0.03em', margin: 0 }}>How the architecture works.</h2>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {faqs.map((faq, idx) => (
+              <div key={idx} style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '2rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02)' }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#171717', marginBottom: '1rem' }}>{faq.question}</h3>
+                <p style={{ fontSize: '1rem', color: '#525252', lineHeight: 1.6, margin: 0 }}>{faq.answer}</p>
+              </div>
             ))}
           </div>
         </div>

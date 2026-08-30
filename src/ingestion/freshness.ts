@@ -1,9 +1,5 @@
 import { env } from '../config/env.js';
 
-// ---------------------------------------------------------------------------
-// Freshness utilities — TTL + stale-after flag
-// ---------------------------------------------------------------------------
-
 /**
  * Determine if a last-synced timestamp is considered stale
  * based on the configured SYNC_STALE_AFTER_SECONDS threshold.

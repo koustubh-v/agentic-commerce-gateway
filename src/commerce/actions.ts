@@ -358,7 +358,6 @@ export async function commerceInitiateCheckout(
     correlationId: idempotencyKey,
   });
 
-  // Write intent to call Razorpay to outbox
   await writeOutboxEntry({
     paymentIntentId: intent.id,
     actionType: 'CREATE_RAZORPAY_ORDER',
@@ -379,7 +378,7 @@ export async function commerceInitiateCheckout(
 
   return {
     checkoutToken,
-    razorpayOrderId: null, // Will be populated by outbox worker
+    razorpayOrderId: null, 
     amount: Math.round(Number(cart.total) * 100),
     currency: cart.currency,
     keyId: merchant.razorpayKeyId ?? '',
@@ -477,13 +476,11 @@ export async function commerceUpdateCart(
   orderId: string,
   items: Array<{ productId: string; variantId?: string; quantity: number }>
 ): Promise<CartSnapshot> {
-  // For the ACP patch route. Modifying a cart after intent creation invalidates the intent.
-  // We cancel the old intent and create a new checkout session.
+
   await commerceCancelCheckout(orderId);
   
   const oldOrder = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
-  
-  // Clear old cart items and add new ones
+
   await prisma.cartItem.deleteMany({ where: { cartId: oldOrder.cartId } });
   
   for (const item of items) {
