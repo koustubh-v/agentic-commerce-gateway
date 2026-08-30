@@ -47,62 +47,8 @@ The Agent Commerce Gateway is a secure infrastructure layer built to bridge the 
 
 The gateway enforces a rigid security perimeter around every agentic transaction. The diagram below shows the full data flow from an AI agent through the policy gate to the payment provider.
 
-```mermaid
-graph TD
-    subgraph AGENTS["AI Agent Layer"]
-        A1["Claude / GPT / Gemini<br/>LangChain · AutoGen · CrewAI"]
-    end
-
-    subgraph ACG["Agent Commerce Gateway"]
-        direction TB
-        AUTH["OAuth 2.0<br/>Token Auth"]
-        FEED["Catalog Feed<br/>/acp/feed"]
-        GATE["Money Gate<br/>Policy Enforcer"]
-        HASH["State Hash<br/>Tamper Guard"]
-        OUTBOX["Async Outbox<br/>Worker"]
-        AUDIT["Audit Ledger<br/>Immutable Log"]
-        MCP["MCP Server<br/>SSE Transport"]
-    end
-
-    subgraph PSP["Payment Layer"]
-        RZP["Razorpay<br/>Orders API"]
-    end
-
-    subgraph MERCHANT["Merchant Backend"]
-        direction TB
-        CATALOG["Product Catalog<br/>WooCommerce / Custom"]
-        WEBHOOK["Webhook Handler<br/>Fulfilment Callbacks"]
-        DASH["Merchant Dashboard<br/>Next.js"]
-    end
-
-    A1 -->|"1. client_credentials"| AUTH
-    AUTH -->|"Bearer token"| A1
-    A1 -->|"2. Browse catalog"| FEED
-    FEED -->|"Normalized IR feed"| A1
-    A1 -->|"3. POST /checkout_sessions"| GATE
-    GATE -->|"Policy check pass"| HASH
-    HASH -->|"State verified"| OUTBOX
-    OUTBOX -->|"Create order"| RZP
-    RZP -->|"razorpay_order_id"| OUTBOX
-    OUTBOX -->|"checkout_token"| A1
-    RZP -->|"Payment webhook"| WEBHOOK
-    WEBHOOK -->|"Capture / Refund"| GATE
-    GATE -->|"All decisions"| AUDIT
-    CATALOG -->|"Mode A: polling / Mode B: push"| FEED
-    DASH -->|"View orders & audit"| AUDIT
-
-    A1 -.->|"MCP tools (SSE)"| MCP
-    MCP -.->|"search / cart / checkout"| GATE
-
-    classDef gateway fill:#0f172a,color:#f8fafc,stroke:#334155
-    classDef external fill:#1e3a5f,color:#f8fafc,stroke:#3b82f6
-    classDef merchant fill:#14532d,color:#f8fafc,stroke:#22c55e
-    classDef agent fill:#3b0764,color:#f8fafc,stroke:#a855f7
-    class AUTH,FEED,GATE,HASH,OUTBOX,AUDIT,MCP gateway
-    class RZP external
-    class CATALOG,WEBHOOK,DASH merchant
-    class A1 agent
-```
+![ACG High Level Architecture](assets/acg-architecture.png)
+<p align="center"><em>Fig 1: Main ACG Architecture</em></p>
 
 ### Process Flow
 
