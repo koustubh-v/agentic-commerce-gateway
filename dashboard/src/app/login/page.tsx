@@ -165,7 +165,7 @@ function LoginForm() {
             <form onSubmit={handleSignIn}>
               <div style={{ marginBottom: '1.25rem' }}>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, color: '#171717', marginBottom: '0.5rem' }}>Email address</label>
-                <input id="signin-email" type="email" className={styles.formInput} required
+                <input id="signin-email" type="email" className={styles.formInput} required suppressHydrationWarning
                   value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="you@example.com" />
               </div>

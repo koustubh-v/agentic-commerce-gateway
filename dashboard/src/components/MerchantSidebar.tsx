@@ -5,13 +5,15 @@ import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import {
   LayoutDashboard, Link2, Package, KeyRound,
-  Activity, Settings, LogOut, Shield,
+  Activity, Settings, LogOut, Shield, BookOpen, Home
 } from 'lucide-react';
 import styles from '@/app/dashboard.module.css';
 
 const merchantNav = [
+  { href: '/', label: 'Home', icon: Home },
   { href: '/merchant/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/merchant/connect', label: 'Connect Store', icon: Link2 },
+  { href: '/merchant/docs', label: 'Developer Docs', icon: BookOpen },
   { href: '/merchant/catalog', label: 'Catalog', icon: Package },
   { href: '/merchant/agents', label: 'Agent Clients', icon: KeyRound },
   { href: '/merchant/audit', label: 'Audit Log', icon: Activity },

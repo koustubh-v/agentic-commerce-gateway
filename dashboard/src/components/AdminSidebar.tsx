@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { LayoutDashboard, Store, UserPlus, LogOut, Shield } from 'lucide-react';
+import { LayoutDashboard, Store, UserPlus, LogOut, Shield, Home } from 'lucide-react';
 import styles from '@/app/dashboard.module.css';
 
 const adminNav = [
+  { href: '/', label: 'Home', icon: Home },
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/merchants', label: 'All Merchants', icon: Store },
   { href: '/admin/merchants/new', label: 'Add Merchant', icon: UserPlus },

@@ -34,7 +34,12 @@ function CheckIcon() {
   return <svg aria-hidden="true" viewBox="0 0 16 16" className={styles.check}><path d="m3.25 8.25 2.9 2.9 6.6-6.6" /></svg>;
 }
 
-export default function LandingPage() {
+import { auth } from '@/lib/auth';
+import LogoutButton from '@/components/ui/LogoutButton';
+
+export default async function LandingPage() {
+  const session = await auth();
+
   const faqs = [
     {
       question: "Why do I need to add my Razorpay keys to ACG?",
@@ -56,7 +61,16 @@ export default function LandingPage() {
       <nav className={`${styles.nav} ${heroFocus.nav}`} data-landing-nav aria-label="Main navigation">
         <Link href="/" className={styles.brand} aria-label="Agent Commerce Gateway home"><span className={styles.brandMark}><span /></span><span>ACG</span></Link>
         <div className={styles.navLinks}><a href="#platform">Platform</a><a href="#how-it-works">How it works</a><a href="#security">Security</a></div>
-        <div className={styles.navActions}><Link className={styles.login} href="/login">Log in</Link><Link className={styles.smallCta} href="/login?tab=signup">Get started <ArrowIcon /></Link></div>
+        <div className={styles.navActions}>
+          {session ? (
+            <LogoutButton />
+          ) : (
+            <>
+              <Link className={styles.login} href="/login">Log in</Link>
+              <Link className={styles.smallCta} href="/login?tab=signup">Get started <ArrowIcon /></Link>
+            </>
+          )}
+        </div>
       </nav>
 
       <section className={`${styles.hero} ${treatment.hero} ${heroFocus.hero}`} data-landing-hero>
@@ -70,7 +84,13 @@ export default function LandingPage() {
           <p className={styles.eyebrow}>INTRODUCING</p>
           <h1>Agentic<br />Commerce<br /><em>Gateway</em></h1>
           <p className={styles.lede}>The secure commerce layer for a new generation of shoppers. Connect your catalog, enforce policies, and let trusted agents transact.</p>
-          <div className={styles.heroActions}><Link href="/login?tab=signup" className={styles.primaryCta}>Get started <ArrowIcon /></Link></div>
+          <div className={styles.heroActions}>
+            {session ? (
+              <Link href={session.user.role === 'admin' ? '/admin/dashboard' : '/merchant/dashboard'} className={styles.primaryCta}>Go to Dashboard <ArrowIcon /></Link>
+            ) : (
+              <Link href="/login?tab=signup" className={styles.primaryCta}>Get started <ArrowIcon /></Link>
+            )}
+          </div>
           <div className={styles.trustRow}><span>Catalog connection</span><span>Policy controls</span><span>Secure checkout</span></div>
         </div>
         <div className={styles.productWindow} aria-label="Example secure agent order workflow">

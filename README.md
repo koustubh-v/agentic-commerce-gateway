@@ -117,6 +117,30 @@ Follow these steps to set up the environment and run the gateway locally.
    npm run dev
    ```
 
+## Integration Guide: Connecting Your Store
+
+If you have an existing product website (for example, running on `http://localhost:5173`) with a large catalog, you can sync it to ACG using our data ingestion pipelines.
+
+### Step 1: Choose an Ingestion Mode
+ACG supports two ways to keep your catalog synced:
+1. **Mode A (Polling)**: ACG reaches out to your backend API periodically and pulls updates. Best for simple integrations where you can easily expose an endpoint that returns your products.
+2. **Mode B (Webhooks)**: Your website actively pushes updates to ACG whenever a product is created or updated. Best for very large catalogs where prices or inventory change rapidly.
+
+### Step 2: Create a Merchant Account
+Before importing products, ACG needs a Merchant profile to own them.
+1. Run ACG locally (`npm run dev`).
+2. Go to the ACG Merchant Dashboard at `http://localhost:3000`.
+3. Sign up and create a new Merchant account. Note down your **Merchant ID**.
+
+### Step 3: Implement the Data Sync
+If you choose Mode A (Polling):
+1. On your `localhost:5173` app, create an endpoint (e.g., `/api/export-catalog`).
+2. Have it return your products in a structured JSON format (title, price, description, variants, stock).
+3. In ACG's `src/ingestion/adapters/modeA/poller.ts`, we'll add a quick mapping function that reads your API and converts your specific JSON format into ACG's standard format.
+
+### Step 4: Configure your Policy Gate
+Once the products are in ACG, go back to the Merchant Dashboard to set your guardrails, like a Max Spend Limit or category restrictions.
+
 ## Demo Script
 
 The `scripts/demo/` folder has two scripts that show the whole agentic commerce flow from start to finish. You can use them for demo recordings and delete them later.
