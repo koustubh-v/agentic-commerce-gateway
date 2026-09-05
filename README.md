@@ -141,9 +141,9 @@ If you choose Mode A (Polling):
 ### Step 4: Configure your Policy Gate
 Once the products are in ACG, go back to the Merchant Dashboard to set your guardrails, like a Max Spend Limit or category restrictions.
 
-## Demo Script
+## Demo Agent
 
-The `scripts/demo/` folder has two scripts that show the whole agentic commerce flow from start to finish. You can use them for demo recordings and delete them later.
+The `scripts/demo/` folder has a script to help you seed the database with products. Once seeded, you can use the interactive Demo Agent UI built into the dashboard.
 
 ### Step 1: Seed the database
 
@@ -158,57 +158,22 @@ What it does:
 - Adds sample products like a laptop and headphones
 - Prints the merchant ID so you can use it
 
-### Step 2: Run the AI agent
+### Step 2: Run the AI agent via UI
 
-This script acts like an AI agent autonomously buying a product through ACG.
+Instead of using a command-line script, ACG features a fully interactive web-based Agent Simulator!
 
-```bash
-npx ts-node --esm scripts/demo/demo-agent.ts
-```
+1. Make sure your dashboard is running (`npm run dev` in the `dashboard` folder).
+2. Open your browser and navigate to `http://localhost:3001/demo`.
+3. You will see the **Agent Workspace Terminal**.
+4. Type a prompt like *"Buy some affordable earphones"* or click one of the suggested prompts.
+5. Click **Execute Prompt**.
 
 What it does:
-1. Registers itself to get access credentials
-2. Gets a secure token to talk to the API
-3. Finds a product from the catalog
-4. Starts a checkout and passes it through the policy gate
-5. If **approved**: prints the Razorpay Order ID and a link for a human to complete the payment
-6. If **blocked**: prints the reason it was blocked, which also shows up in your Merchant Dashboard
-
-### Expected output (approved)
-
-```
-[AI AGENT] Waking up...
-Authenticating with ACG as "Demo Shopping Agent"...
-Access token acquired.
-
-Found product: Sony WH-1000XM5 - ₹24999
-Attempting to purchase via Agent Commerce Gateway...
-
-======================================================
-GATEWAY APPROVED
-======================================================
-Razorpay provisioning successful.
-Gateway Order ID: <uuid>
-
-Human-in-the-loop Checkout Link:
-http://localhost:3000/checkout/<token>
-======================================================
-
-Demo tip: Open the link above to complete the Razorpay payment, then check your Merchant Dashboard!
-```
-
-### Expected output (blocked)
-
-```
-======================================================
-GATEWAY BLOCKED TRANSACTION
-======================================================
-Reason: Spend limit exceeded
-Rule Enforced: MAX_SPEND
-======================================================
-
-Demo tip: Check your Merchant Dashboard Audit logs. The block was recorded instantly.
-```
+1. Simulates the AI agent parsing your natural language into structured ACP (Agent Commerce Protocol) requests.
+2. Authenticates with ACG to get an access token.
+3. Searches the catalog and attempts to purchase the item.
+4. If **approved**: Provides a checkout link for a Human-in-the-loop to complete the Razorpay payment.
+5. If **blocked**: Halts immediately and displays a `GATEWAY BLOCKED TRANSACTION` error explaining exactly which policy rule was violated (e.g. Spend limit exceeded).
 
 ## MCP Server (Model Context Protocol)
 
