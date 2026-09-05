@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Tooltip from '@/components/ui/Tooltip';
 import styles from '@/app/dashboard.module.css';
@@ -13,13 +13,48 @@ export default function ConnectPage() {
   const [productsEndpoint, setProductsEndpoint] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [isEditing, setIsEditing] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/merchant/connect', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.productsEndpoint) {
+          setProductsEndpoint(data.productsEndpoint);
+          setIsEditing(false); // If they have data, it's read-only
+        }
+        setInitialLoad(false);
+      })
+      .catch(console.error);
+  }, []);
 
   async function handleConnect() {
     setSaving(true);
-    setTimeout(() => {
-      setDone(true);
-      setTimeout(() => router.push('/merchant/dashboard'), 1500);
-    }, 1000);
+    try {
+      const res = await fetch('/api/merchant/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productsEndpoint,
+          // other fields can be added here
+        }),
+      });
+      if (res.ok) {
+        setDone(true);
+        setTimeout(() => {
+          router.refresh(); // Clear Next.js client-side cache!
+          router.push('/merchant/dashboard');
+        }, 1500);
+      } else {
+        alert('Failed to connect store');
+        setSaving(false);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error connecting store');
+      setSaving(false);
+    }
   }
 
   if (done) {
@@ -38,8 +73,16 @@ export default function ConnectPage() {
           <h1 className={styles.pageTitle}>Connect Store</h1>
           <p className={styles.pageSubtitle}>Provide your API details to let agents read your catalog and place orders.</p>
         </div>
+        {!isEditing && (
+          <button className={styles.btnSecondary} onClick={() => setIsEditing(true)}>
+            Edit Connection
+          </button>
+        )}
       </div>
 
+      {initialLoad ? (
+        <p>Loading...</p>
+      ) : (
       <div className={styles.formSection}>
         <div className={styles.stepRow}>
           <div className={styles.stepNumber}>1</div>
@@ -49,10 +92,10 @@ export default function ConnectPage() {
               <Tooltip content="Your Gateway relies on Razorpay to process payments securely. Find these in your Razorpay Dashboard under API Keys." />
             </div>
             <div className={styles.formGroup} style={{ marginBottom: '1rem' }}>
-              <input type="text" className={`${styles.formInput} ${styles.mono}`} placeholder="Key ID (rzp_test_...)" />
+              <input type="text" className={`${styles.formInput} ${styles.mono}`} placeholder="Key ID (rzp_test_...)" disabled={!isEditing} />
             </div>
             <div className={styles.formGroup} style={{ marginBottom: 0 }}>
-              <input type="password" className={`${styles.formInput} ${styles.mono}`} placeholder="Key Secret..." />
+              <input type="password" className={`${styles.formInput} ${styles.mono}`} placeholder="Key Secret..." disabled={!isEditing} />
             </div>
           </div>
         </div>
@@ -67,10 +110,10 @@ export default function ConnectPage() {
               <Tooltip content="The endpoint where ACG can fetch your product catalog. Must return JSON." />
             </div>
             <div className={styles.formGroup} style={{ marginBottom: '1rem' }}>
-              <input type="url" className={`${styles.formInput} ${styles.mono}`} value={productsEndpoint} onChange={e => setProductsEndpoint(e.target.value)} placeholder="Catalog Endpoint (https://api.yourstore.com/products)" />
+              <input type="url" className={`${styles.formInput} ${styles.mono}`} value={productsEndpoint} onChange={e => setProductsEndpoint(e.target.value)} placeholder="Catalog Endpoint (https://api.yourstore.com/products)" disabled={!isEditing} />
             </div>
             <div className={styles.formGroup} style={{ marginBottom: 0 }}>
-              <input type="password" className={`${styles.formInput} ${styles.mono}`} value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="API Token (Bearer ...)" />
+              <input type="password" className={`${styles.formInput} ${styles.mono}`} value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="API Token (Bearer ...)" disabled={!isEditing} />
             </div>
           </div>
         </div>
@@ -85,15 +128,18 @@ export default function ConnectPage() {
               <Tooltip content="When an agent successfully completes a payment, we will send an HTTP POST here so you can ship the order." />
             </div>
             <div className={styles.formGroup} style={{ marginBottom: 0 }}>
-              <input type="url" className={`${styles.formInput} ${styles.mono}`} value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} placeholder="Webhook URL (https://api.yourstore.com/webhooks/orders)" />
+              <input type="url" className={`${styles.formInput} ${styles.mono}`} value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} placeholder="Webhook URL (https://api.yourstore.com/webhooks/orders)" disabled={!isEditing} />
             </div>
           </div>
         </div>
       </div>
+      )}
 
-      <button className={styles.btnPrimary} onClick={handleConnect} disabled={saving || !productsEndpoint}>
-        {saving ? 'Connecting...' : 'Connect Gateway'}
-      </button>
+      {isEditing && !initialLoad && (
+        <button className={styles.btnPrimary} onClick={handleConnect} disabled={saving || !productsEndpoint}>
+          {saving ? 'Connecting & Syncing...' : 'Connect & Sync'}
+        </button>
+      )}
     </div>
   );
 }

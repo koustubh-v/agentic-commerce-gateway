@@ -6,9 +6,17 @@ const prisma = new PrismaClient();
 const API_BASE = 'http://127.0.0.1:3000/acp';
 
 async function run() {
-  console.log('\n [AI AGENT] Waking up...');
+  const prompt = process.argv.slice(2).join(' ') || 'earphones';
+  console.log(`\n [AI AGENT] Waking up with task: "Buy ${prompt}"`);
 
-  const merchant = await prisma.merchant.findFirst();
+  const targetMerchantId = process.env.TARGET_MERCHANT_ID;
+  let merchant;
+  if (targetMerchantId) {
+    merchant = await prisma.merchant.findUnique({ where: { id: targetMerchantId } });
+  } else {
+    merchant = await prisma.merchant.findFirst();
+  }
+
   if (!merchant) {
     console.error(' No merchant found. Run demo-ingest.ts first.');
     process.exit(1);
@@ -41,12 +49,27 @@ async function run() {
   const { access_token } = await authRes.json();
   console.log(' Access token acquired.');
 
-  const product = await prisma.product.findFirst({
-    where: { merchantId: merchant.id, status: 'ACTIVE' }
-  });
+  // Dynamically extract keywords from the prompt to search the catalog
+  const ignoreWords = ['buy', 'some', 'a', 'an', 'the', 'for', 'me', 'cheap', 'expensive'];
+  const keywords = prompt.split(' ').filter(w => !ignoreWords.includes(w.toLowerCase()) && w.length > 2);
+  
+  console.log(` [AI AGENT] Analyzing catalog for keywords: [${keywords.join(', ')}]...`);
+
+  let product = null;
+  for (const kw of keywords) {
+    product = await prisma.product.findFirst({
+      where: { 
+        merchantId: merchant.id, 
+        status: 'ACTIVE',
+        title: { contains: kw, mode: 'insensitive' }
+      }
+    });
+    if (product) break;
+  }
   
   if (!product) {
-    console.error(' No products found for this merchant. Run demo-ingest.ts first.');
+    console.error(`\n Error: The AI could not find any products matching "${prompt}" in your store.`);
+    console.error(' Try running with a different product name that exists in your synced catalog.');
     process.exit(1);
   }
 
@@ -88,7 +111,7 @@ async function run() {
   console.log('Razorpay provisioning successful.');
   console.log(`Gateway Order ID: ${responseData.checkoutSessionId}`);
 
-  const checkoutUrl = `http://localhost:3000/checkout/${responseData.checkoutToken}`;
+  const checkoutUrl = `http://localhost:3001/checkout/${responseData.checkoutToken}`;
   console.log(`\n Human-in-the-loop Checkout Link:\n${checkoutUrl}`);
   console.log('======================================================\n');
   

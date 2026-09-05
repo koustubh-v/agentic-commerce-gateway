@@ -5,6 +5,7 @@ import CursorGrid from '@/components/ui/CursorGrid';
 import LandingEffects from '@/components/ui/LandingEffects';
 import ScrollReveal from '@/components/ui/ScrollReveal';
 import LogoMarquee from '@/components/ui/LogoMarquee';
+import DemoAgentTerminal from '@/components/ui/DemoAgentTerminal';
 import styles from './page.module.css';
 import treatment from './razorpay-treatment.module.css';
 import heroFocus from './hero-focus.module.css';
@@ -60,7 +61,13 @@ export default async function LandingPage() {
       <LandingEffects />
       <nav className={`${styles.nav} ${heroFocus.nav}`} data-landing-nav aria-label="Main navigation">
         <Link href="/" className={styles.brand} aria-label="Agent Commerce Gateway home"><span className={styles.brandMark}><span /></span><span>ACG</span></Link>
-        <div className={styles.navLinks}><a href="#platform">Platform</a><a href="#how-it-works">How it works</a><a href="#security">Security</a></div>
+        <div className={styles.navLinks}>
+          <a href="#platform">Platform</a>
+          <a href="#how-it-works">How it works</a>
+          <a href="#security">Security</a>
+          <Link href="/demo">Demo Agent</Link>
+          <Link href="/challenges">Behind the Scenes</Link>
+        </div>
         <div className={styles.navActions}>
           {session ? (
             <LogoutButton />

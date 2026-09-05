@@ -2,7 +2,8 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import Tooltip from '@/components/ui/Tooltip';
 import styles from '@/app/dashboard.module.css';
-import { IndianRupee, Users, Activity, Package } from 'lucide-react';
+import { IndianRupee, Users, Activity } from 'lucide-react';
+import SyncProgress from '@/components/SyncProgress';
 
 export default async function MerchantDashboard() {
   const session = await auth();
@@ -12,20 +13,23 @@ export default async function MerchantDashboard() {
 
   const merchantId = session.user.merchantId!;
 
-  const [productCount, txCount, agentCount, revenueAgg] = await Promise.all([
+  const [productCount, txCount, agentCount, revenueAgg, config] = await Promise.all([
     prisma.product.count({ where: { merchantId } }),
     prisma.transactionEvent.count({ where: { paymentIntent: { merchantId } } }),
     prisma.agentClient.count(),
     prisma.paymentIntent.aggregate({
       where: { merchantId, status: 'PSP_SUCCEEDED' },
       _sum: { amount: true }
-    })
+    }),
+    prisma.merchantSyncConfig.findUnique({ where: { merchantId } })
   ]);
 
   const totalRevenue = Number(revenueAgg._sum.amount || 0) / 100; 
 
+  const hasConfig = !!config?.productsEndpoint;
+
   return (
-    <div className={styles.page}>
+    <div className={styles.page} style={{ position: 'relative' }}>
       <div className={styles.pageHeader}>
         <div>
           <h1 className={styles.pageTitle}>Welcome back, {session.user.name || 'Merchant'}</h1>
@@ -67,16 +71,7 @@ export default async function MerchantDashboard() {
           </div>
         </div>
 
-        <div className={styles.metricCard}>
-          <div className={styles.iconBadge} style={{ background: '#ecfdf5', color: '#10b981' }}>
-            <Package size={18} />
-          </div>
-          <div className={styles.metricValue}>{productCount}</div>
-          <div className={styles.metricLabel}>
-            Products Synced
-            <Tooltip content="Number of products successfully synced from your store API." />
-          </div>
-        </div>
+        <SyncProgress initialCount={productCount} hasConfig={hasConfig} />
       </div>
 
       <div className={styles.activityCard}>
